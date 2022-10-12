@@ -112,7 +112,7 @@ class OnPolicyRunner:
             with torch.inference_mode():
                 for i in range(int(self.num_steps_per_env / self.num_steps_per_policy)):
                     actions_net = self.alg.act(obs, critic_obs)
-                    actions_net = torch.zeros_like(actions_net)
+                    # actions_net = torch.zeros_like(actions_net)
                     etg_actions = torch.from_numpy(self.ETG.get_action(current_time=self.env.common_step_counter * self.env.dt)).to(self.device).float()
                     etg_actions = etg_actions - self.env.default_dof_pos
                     actions = actions_net + etg_actions

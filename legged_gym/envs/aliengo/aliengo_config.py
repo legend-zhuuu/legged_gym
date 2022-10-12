@@ -40,10 +40,10 @@ class AlienGoCfg(LeggedRobotCfg):
         stiffness = {'joint': 120.}  # [N*m/rad]
         damping = {'joint': 3.5}     # [N*m*s/rad]
         # action scale: target angle = actionScale * action + defaultAngle
-        action_scale = 1.
+        action_scale = 0.25  # attention: also scaled tg!!!
         # decimation: Number of control action updates @ sim DT per policy DT
-        decimation = 1
-        use_actuator_network = False
+        decimation = 4
+        use_actuator_network = True
         actuator_net_file = "{LEGGED_GYM_ROOT_DIR}/resources/ETG/ac2f10ms.onnx"
 
     class asset(LeggedRobotCfg.asset):
@@ -55,7 +55,7 @@ class AlienGoCfg(LeggedRobotCfg):
         self_collisions = 1  # 1 to disable, 0 to enable...bitwise filter
         disable_gravity = False
         collapse_fixed_joints = True  # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
-        fix_base_link = True  # fixe the base of the robot
+        fix_base_link = False  # fixe the base of the robot
         default_dof_drive_mode = 3  # see GymDofDriveModeFlags (0 is none, 1 is pos tgt, 2 is vel tgt, 3 effort)
         replace_cylinder_with_capsule = True  # replace collision cylinders with capsules, leads to faster/more stable simulation
         flip_visual_attachments = True  # Some .obj meshes must be flipped from y-up to z-up
