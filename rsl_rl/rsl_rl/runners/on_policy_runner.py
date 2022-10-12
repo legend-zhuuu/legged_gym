@@ -68,6 +68,7 @@ class OnPolicyRunner:
         alg_class = eval(self.cfg["algorithm_class_name"]) # PPO
         self.alg: PPO = alg_class(actor_critic, device=self.device, **self.alg_cfg)
         self.num_steps_per_env = self.cfg["num_steps_per_env"]
+        self.num_steps_per_policy = self.cfg["num_steps_per_policy"]
         self.save_interval = self.cfg["save_interval"]
 
         # init storage and model
@@ -109,18 +110,20 @@ class OnPolicyRunner:
             start = time.time()
             # Rollout
             with torch.inference_mode():
-                for i in range(self.num_steps_per_env):
+                for i in range(int(self.num_steps_per_env / self.num_steps_per_policy)):
                     actions_net = self.alg.act(obs, critic_obs)
-                    # actions = torch.zeros_like(actions)
-                    etg_actions = torch.from_numpy(self.ETG.get_action(current_time=i * 0.01)).to(self.device).float()
-                    # actions = torch.zeros_like(actions)
+                    actions_net = torch.zeros_like(actions_net)
+                    etg_actions = torch.from_numpy(self.ETG.get_action(current_time=self.env.common_step_counter * self.env.dt)).to(self.device).float()
+                    etg_actions = etg_actions - self.env.default_dof_pos
                     actions = actions_net + etg_actions
-                    # print(actions[0])
-                    obs, privileged_obs, rewards, dones, infos = self.env.step(actions)
+                    # actions = torch.zeros_like(actions)
+                    for _ in range(self.num_steps_per_policy):
+                        obs, privileged_obs, rewards, dones, infos = self.env.step(actions)
+                    # print(self.env.common_step_counter)
                     critic_obs = privileged_obs if privileged_obs is not None else obs
                     obs, critic_obs, rewards, dones = obs.to(self.device), critic_obs.to(self.device), rewards.to(self.device), dones.to(self.device)
                     self.alg.process_env_step(rewards, dones, infos)
-                    
+
                     if self.log_dir is not None:
                         # Book keeping
                         if 'episode' in infos:

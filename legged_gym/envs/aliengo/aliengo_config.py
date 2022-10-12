@@ -37,13 +37,13 @@ class AlienGoCfg(LeggedRobotCfg):
     class control(LeggedRobotCfg.control):
         # PD Drive parameters:
         control_type = 'P'
-        stiffness = {'joint': 60.}  # [N*m/rad]
-        damping = {'joint': 1.5}     # [N*m*s/rad]
+        stiffness = {'joint': 120.}  # [N*m/rad]
+        damping = {'joint': 3.5}     # [N*m*s/rad]
         # action scale: target angle = actionScale * action + defaultAngle
         action_scale = 1.
         # decimation: Number of control action updates @ sim DT per policy DT
         decimation = 1
-        use_actuator_network = True
+        use_actuator_network = False
         actuator_net_file = "{LEGGED_GYM_ROOT_DIR}/resources/ETG/ac2f10ms.onnx"
 
     class asset(LeggedRobotCfg.asset):
@@ -55,7 +55,7 @@ class AlienGoCfg(LeggedRobotCfg):
         self_collisions = 1  # 1 to disable, 0 to enable...bitwise filter
         disable_gravity = False
         collapse_fixed_joints = True  # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
-        fix_base_link = False  # fixe the base of the robot
+        fix_base_link = True  # fixe the base of the robot
         default_dof_drive_mode = 3  # see GymDofDriveModeFlags (0 is none, 1 is pos tgt, 2 is vel tgt, 3 effort)
         replace_cylinder_with_capsule = True  # replace collision cylinders with capsules, leads to faster/more stable simulation
         flip_visual_attachments = True  # Some .obj meshes must be flipped from y-up to z-up
@@ -91,6 +91,7 @@ class AlienGoCfg(LeggedRobotCfg):
 
     class sim(LeggedRobotCfg.sim):
         up_axis = 1  # 0 is y, 1 is z
+        dt = 0.002
 
 
 class AlienGoCfgPPO(LeggedRobotCfgPPO):
@@ -100,4 +101,6 @@ class AlienGoCfgPPO(LeggedRobotCfgPPO):
     class runner(LeggedRobotCfgPPO.runner):
         run_name = ''
         experiment_name = 'rough_aliengo'
+        num_steps_per_policy = 5
+        num_steps_per_env = 100
         max_iterations = 300
