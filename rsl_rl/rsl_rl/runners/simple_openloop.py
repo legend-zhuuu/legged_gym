@@ -15,13 +15,17 @@ import inspect
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(os.path.dirname(currentdir))
 os.sys.path.insert(0, parentdir)
+start_hip = 0.
+start_thigh = 0.69
+start_calf = -1.42
 
-import attr
 from gym import spaces
 import numpy as np
 import copy
 
 from .ETG_model import ETG_layer, ETG_model
+
+default_joint_angles = np.array([start_hip, start_thigh, start_calf] * 4)  # = target angles [rad] when action = 0.0
 
 
 class ETGOffsetGenerator(object):
@@ -43,7 +47,7 @@ class ETGOffsetGenerator(object):
         self._state_table = []
         self._action_table = []
 
-        self._init_joint_pose = self.gym_env.robot.GetDefaultInitJointPose()
+        self._init_joint_pose = default_joint_angles
         action_high = np.array([0.3, 0.4, 0.4] * 4) + self._init_joint_pose
         action_low = np.array([-0.3, -0.4, -0.4] * 4) + self._init_joint_pose
         self.action_space = spaces.Box(action_low, action_high, dtype=np.float64)
@@ -125,6 +129,7 @@ class ETGOffsetGenerator(object):
                 act_ref = self._ETG_model.act_clip(act_etg)
                 self._state_table.append(state)
                 self._action_table.append(act_ref)
+
 
     def get_action(self, current_time=None, input_action=None):
         # lookup state and action table

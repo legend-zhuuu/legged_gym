@@ -31,10 +31,28 @@ class AlienGo(LeggedRobot):
             # pd controller
             return super()._compute_torques(actions)
 
+    # def compute_observations(self):
+    #     """ Computes observations
+    #             """
+    #     self.obs_buf = torch.cat((self.commands[:, :3],
+    #                               self.projected_gravity,
+    #                               self.dof_pos,
+    #                               self.base_lin_vel,
+    #                               self.base_ang_vel,
+    #                               self.dof_vel
+    #                               ), dim=-1)
+    #     # add perceptive inputs if not blind
+    #     if self.cfg.terrain.measure_heights:
+    #         heights = torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements
+    #         self.obs_buf = torch.cat((self.obs_buf, heights), dim=-1)
+    #     # add noise if needed
+    #     if self.add_noise:
+    #         self.obs_buf += (2 * torch.rand_like(self.obs_buf) - 1) * self.noise_scale_vec
+
     def check_termination(self):
         super().check_termination()
         # z < 0.2 reset
         actor_state = self.gym.acquire_actor_root_state_tensor(self.sim)
         root_states = gymtorch.wrap_tensor(actor_state)
-        z_limit_buf = root_states[:, 2] < 0.2
+        z_limit_buf = root_states[:, 2] < 0.3
         self.reset_buf |= z_limit_buf
