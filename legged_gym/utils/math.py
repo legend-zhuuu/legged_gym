@@ -54,3 +54,55 @@ def torch_rand_sqrt_float(lower, upper, shape, device):
     r = torch.where(r<0., -torch.sqrt(-r), torch.sqrt(r))
     r =  (r + 1.) / 2.
     return (upper - lower) * r + lower
+
+def quaternion_to_matrix(quaternions):
+    """
+    Convert rotations given as quaternions to rotation matrices.
+
+    Args:
+        quaternions: quaternions with real part first,
+            as tensor of shape (..., 4).
+
+    Returns:
+        Rotation matrices as tensor of shape (..., 3, 3).
+    """
+    i, j, k, r = torch.unbind(quaternions, -1)
+    two_s = 2.0 / (quaternions * quaternions).sum(-1)
+
+    o = torch.stack(
+        (
+            1 - two_s * (j * j + k * k),
+            two_s * (i * j - k * r),
+            two_s * (i * k + j * r),
+            two_s * (i * j + k * r),
+            1 - two_s * (i * i + k * k),
+            two_s * (j * k - i * r),
+            two_s * (i * k - j * r),
+            two_s * (j * k + i * r),
+            1 - two_s * (i * i + j * j),
+        ),
+        -1,
+    )
+    return o.reshape(quaternions.shape[:-1] + (9,))
+
+def quaternion_to_euler(quaternions):
+    """
+        Convert rotations given as quaternions to roll pitch yaw.
+
+        Args:
+            quaternions: quaternions with real part first,
+                as tensor of shape (..., 4).
+
+        Returns:
+            rpy as tensor of shape (..., 3).
+    """
+    x, y, z, w = torch.unbind(quaternions, -1)
+
+    o = torch.stack(
+        (
+        torch.atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y)),
+        torch.asin(2 * (w * y - z * x)),
+        torch.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)),
+        ),
+        -1,)
+    return o.reshape(quaternions.shape[:-1] + (3,))

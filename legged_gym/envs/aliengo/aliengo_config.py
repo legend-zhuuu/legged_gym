@@ -33,6 +33,7 @@ class AlienGoCfg(LeggedRobotCfg):
             'RL_thigh_joint': start_thigh,  # [rad]  0.69
             'RL_calf_joint': start_calf,  # [rad]  -1.42
         }
+        num_steps_per_policy = 5
 
     class control(LeggedRobotCfg.control):
         # PD Drive parameters:
@@ -71,17 +72,31 @@ class AlienGoCfg(LeggedRobotCfg):
         soft_torque_limit = 0.9
         only_positive_rewards = True
         class scales ( LeggedRobotCfg.rewards.scales ):
-            termination = -200.
-            tracking_ang_vel = 1.0
-            torques = -5.e-6
-            dof_acc = -2.e-7
-            lin_vel_z = -0.5
-            dof_pos_limits = -1.
-            dof_vel = -0.0
-            ang_vel_xy = -0.0
-            feet_contact_forces = -0.
-            orientation = -5.0
-            feet_air_time = 2.
+            # termination = -200.
+            # tracking_ang_vel = 1.0
+            # torques = -5.e-6
+            # dof_acc = -2.e-7
+            # lin_vel_z = -0.5
+            # dof_pos_limits = -1.
+            # dof_vel = -0.0
+            # ang_vel_xy = -0.0
+            # feet_contact_forces = -0.
+            # orientation = -5.0
+            # feet_air_time = 2.
+            up = 0.6
+            height = 0.3
+            feet_vel = 2.0
+            feet_pos = 4.0
+            action_rate = 0.5
+            feet_airtime = 6.0
+            feet_slip = 0.5
+            tau = 0.02
+            badfoot = 1.0
+            footcontact = 1.0
+            done = 1
+            joint_motion = 0.0
+            joint_deviation = 0.0
+            body_motion = 0.0
 
     class commands(LeggedRobotCfg.commands):
         heading_command = False
