@@ -110,15 +110,14 @@ class OnPolicyRunner:
             start = time.time()
             # Rollout
             with torch.inference_mode():
-                for i in range(int(self.num_steps_per_env / self.num_steps_per_policy)):
+                for i in range(int(self.num_steps_per_env)):
                     actions_net = self.alg.act(obs, critic_obs)
                     # actions_net = torch.zeros_like(actions_net)
                     etg_actions = torch.from_numpy(self.ETG.get_action(current_time=self.env.common_step_counter * self.env.dt)).to(self.device).float()
                     etg_actions = etg_actions - self.env.default_dof_pos
                     actions = actions_net + etg_actions
                     # actions = torch.zeros_like(actions)
-                    for _ in range(self.num_steps_per_policy):
-                        obs, privileged_obs, rewards, dones, infos = self.env.step(actions)
+                    obs, privileged_obs, rewards, dones, infos = self.env.step(actions)
                     # print(self.env.common_step_counter)
                     critic_obs = privileged_obs if privileged_obs is not None else obs
                     obs, critic_obs, rewards, dones = obs.to(self.device), critic_obs.to(self.device), rewards.to(self.device), dones.to(self.device)

@@ -5,7 +5,7 @@ class AlienGoCfg(LeggedRobotCfg):
     class env(LeggedRobotCfg.env):
         num_envs = 12
         num_actions = 12
-        num_observations = 48
+        num_observations = 65
 
     class terrain(LeggedRobotCfg.terrain):
         mesh_type = 'plane'
@@ -43,7 +43,7 @@ class AlienGoCfg(LeggedRobotCfg):
         # action scale: target angle = actionScale * action + defaultAngle
         action_scale = 0.25  # attention: also scaled tg!!!
         # decimation: Number of control action updates @ sim DT per policy DT
-        decimation = 4
+        decimation = 5
         use_actuator_network = True
         actuator_net_file = "{LEGGED_GYM_ROOT_DIR}/resources/ETG/ac2f10ms.onnx"
 
@@ -94,9 +94,16 @@ class AlienGoCfg(LeggedRobotCfg):
             badfoot = 1.0
             footcontact = 1.0
             done = 1
+
             joint_motion = 0.0
             joint_deviation = 0.0
             body_motion = 0.0
+
+            velx = 1.
+            contact_nums = 1.
+            contact_errs = 1.
+            contact_rate = 1.
+            energy_sum = 1.
 
     class commands(LeggedRobotCfg.commands):
         heading_command = False
