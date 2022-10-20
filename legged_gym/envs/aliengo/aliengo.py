@@ -12,6 +12,7 @@ from legged_gym.utils.math import quaternion_to_matrix, quaternion_to_euler
 from .aliengo_config import AlienGoCfg
 
 from .laikago_motor import ActuatorNetMotorModel
+from .simple_openloop import ETGOffsetGenerator
 
 BASE_FOOT = np.array([[0.2399, -0.134, -0.38],
                       [0.2399, 0.134, -0.38],
@@ -29,8 +30,16 @@ class AlienGo(LeggedRobot):
             actuator_network_path = self.cfg.control.actuator_net_file.format(LEGGED_GYM_ROOT_DIR=LEGGED_GYM_ROOT_DIR)
             self.actuator_network = ActuatorNetMotorModel(actuator_network_path)
 
+        self.ETG = ETGOffsetGenerator(ETG_T=0.5, dt=0.01)
+        self.ETG.reset()
+        self.prepare_TG_table()
+
     def step(self, actions):
+        self.etg_time += self.dt
+        etg_actions = self.get_etg_actions(self.etg_time).float() - self.default_dof_pos
+        actions = actions * self.cfg.control.action_scale + etg_actions
         super().step(actions)
+        return self.obs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
 
     def post_physics_step(self):
         # 重写buf的更新
@@ -54,14 +63,19 @@ class AlienGo(LeggedRobot):
         self.base_quat_mat[:] = quaternion_to_matrix(self.base_quat)
         self.base_rpy[:] = quaternion_to_euler(self.base_quat)
         self.base_rpy_rate[:] = self.GetTrueBaseRollPitchYawRate()
-        self.last_base10[1:, ...] = self.last_base10[:9, ...]
+        self.last_base10[1:, ...] = self.last_base10[:9, ...].clone()
         self.last_base10[0, ...] = self.base_pos
 
+        self.body_state = gymtorch.wrap_tensor(self.net_body_state).view(self.num_envs, -1, 13)  # shape: num_envs, num_bodies, (position, rotation, linear velocity, angular velocity).
+        self.foot_state = self.body_state[:, self.feet_indices, :]
+        self.foot_position_world = self.foot_state[..., :3]
+        self.foot_velocity_world = self.foot_state[..., 7:10]
         self.real_contact = self.GetFootContacts()
         self.foot_contact_state = self.GetFootContactState()
         self.target_foot_hold = self.ComputeTargetPosInBase2WorldFrame(torch.arange(self.num_envs), z_rand=True)
         self.foot_command = self.ComputeTargetPosInWorld2BaseFrame(self.target_foot_hold)
-        self.energy = self.GetEnergyConsumptionPerControlStep()
+        self.foot_command = (self.foot_command - torch.from_numpy(BASE_FOOT).to(self.device).float()).view(self.num_envs, 12)
+        self.GetEnergyConsumptionPerControlStep()
         self.energy_sum += self.energy
         self.GetCostOfTransport()
         self.GetMotorPower()
@@ -96,7 +110,7 @@ class AlienGo(LeggedRobot):
                                   self.real_contact,  # 4
                                   self.dof_pos,  # 12
                                   self.dof_vel,  # 12
-                                  self.feet_air_time, # 4
+                                  self.feet_air_time,  # 4
                                   self.actions,  # 12
                                   ), dim=-1)
         # add perceptive inputs if not blind
@@ -113,6 +127,7 @@ class AlienGo(LeggedRobot):
         self.last_foot_velocity[env_ids] = torch.zeros_like(self.last_foot_velocity[env_ids])
         for ids in env_ids:
             self.feet_length_error[ids] = []
+        self.etg_time[env_ids] = 0.
         self.contact_ok_num[env_ids] = 0.
         self.last_contacts[env_ids] = torch.ones_like(self.last_contacts[env_ids])
         self.target_foot_hold[env_ids] = self.ComputeTargetPosInBase2WorldFrame(env_ids)
@@ -145,21 +160,22 @@ class AlienGo(LeggedRobot):
         self.base_rpy_rate = self.GetTrueBaseRollPitchYawRate()
         self.last_base10 = torch.tile(self.base_pos, (10, 1, 1))  # 10 * num_envs * xyz
 
-        net_body_state = self.gym.acquire_rigid_body_state_tensor(self.sim)
+        self.net_body_state = self.gym.acquire_rigid_body_state_tensor(self.sim)
         self.gym.refresh_rigid_body_state_tensor(self.sim)
-        self.body_state = gymtorch.wrap_tensor(net_body_state).view(self.num_envs, -1, 13)  # shape: num_envs, num_bodies, (position, rotation, linear velocity, angular velocity).
+        self.body_state = gymtorch.wrap_tensor(self.net_body_state).view(self.num_envs, -1, 13)  # shape: num_envs, num_bodies, (position, rotation, linear velocity, angular velocity).
         self.foot_state = self.body_state[:, self.feet_indices, :]
         self.foot_position_world = self.foot_state[..., :3]
         self.foot_velocity_world = self.foot_state[..., 7:10]
         self.last_foot_velocity = torch.zeros_like(self.foot_velocity_world)
         self.feet_length_error = [[] for _ in range(self.num_envs)]
+        self.etg_time = torch.zeros(self.num_envs, device=self.device, requires_grad=False)
         self.contact_ok_num = torch.zeros(self.num_envs, device=self.device, requires_grad=False)
         self.last_contacts = torch.ones_like(self.last_contacts)  # 将legged_gym中的last_contacts初始值设为1
         self.real_contact = torch.zeros(self.num_envs, 4, device=self.device, requires_grad=False)
         self.foot_contact_state = torch.zeros(self.num_envs, 4, device=self.device, requires_grad=False)
         self.foothold = torch.zeros(self.num_envs, 4, 3, device=self.device, requires_grad=False)
         self.target_foot_hold = self.ComputeTargetPosInBase2WorldFrame(torch.arange(self.num_envs))  # num_envs * 4 * 3
-        self.foot_command = torch.zeros(self.num_envs, 4, 3, device=self.device, requires_grad=False)
+        self.foot_command = torch.zeros(self.num_envs, 12, device=self.device, requires_grad=False)
         # self.history_action = torch.zeros(self.num_envs, 2, self.num_actions, device=self.device, requires_grad=False)
         self.energy = torch.zeros(self.num_envs, device=self.device, requires_grad=False)
         self.energy_sum = torch.zeros_like(self.energy)
@@ -194,30 +210,43 @@ class AlienGo(LeggedRobot):
         if reset:
             # env_ids
             for env in env_ids:
-                for foot_i in range(4):
-                    world_link_pos[env, foot_i] = torch.from_numpy(np.asarray(pybullet.multiplyTransforms(
-                        base_position[env], base_orientation[env], foot_command[foot_i], (0, 0, 0, 1))[0]))
+                for foot_id in range(4):
+                    world_link_pos[env, foot_id] = torch.from_numpy(np.asarray(pybullet.multiplyTransforms(
+                        base_position[env].cpu(), base_orientation[env].cpu(), foot_command[foot_id], (0, 0, 0, 1))[0])).to(self.device).float()
         else:
             # all envs
             for env in env_ids:
-                foot_id = (self.foot_contact_state[env] == 3).nonzero().flatten()
-                world_link_pos[env, foot_id] = torch.from_numpy(np.asarray(pybullet.multiplyTransforms(
-                        base_position[env], base_orientation[env], foot_command[foot_id], (0, 0, 0, 1))[0]))
-        return world_link_pos
+                foot_ids = (self.foot_contact_state[env] == 3).nonzero().flatten()
+                for foot_id in foot_ids:
+                    world_link_pos[env, foot_id] = torch.from_numpy(np.asarray(pybullet.multiplyTransforms(
+                            base_position[env].cpu(), base_orientation[env].cpu(), foot_command[foot_id], (0, 0, 0, 1))[0])).to(self.device).float()
+        return world_link_pos[env_ids]
 
     def ComputeTargetPosInWorld2BaseFrame(self, target_foot_hold):
         base_position, base_orientation = self.base_pos, self.base_quat
         local_link_pos = torch.zeros(self.num_envs, 4, 3, device=self.device, requires_grad=False)
         for env in range(self.num_envs):
-            inverse_translation, inverse_rotation = pybullet.invertTransform(base_position[env], base_orientation[env])
+            inverse_translation, inverse_rotation = pybullet.invertTransform(base_position[env].cpu(), base_orientation[env].cpu())
             for foot_id in range(4):
                 local_link_pos[env, foot_id] = torch.from_numpy(np.asarray(pybullet.multiplyTransforms(
-                    inverse_translation, inverse_rotation, target_foot_hold[env, foot_id], (0, 0, 0, 1))[0]))
+                    inverse_translation, inverse_rotation, target_foot_hold[env, foot_id].cpu().numpy(), (0, 0, 0, 1))[0])).to(self.device).float()
         return local_link_pos
+
+    def prepare_TG_table(self):
+        self.act_ref = torch.from_numpy(np.array(self.ETG._action_table)).to(self.device)
+
+    def get_etg_actions(self, current_time):
+        time_index = ((current_time % self.ETG.ETG_T) / self.ETG.dt).long()
+        act_ref = self.act_ref[time_index]
+        start_hip, start_thigh, start_calf = self.cfg.init_state.start_hip, self.cfg.init_state.start_thigh, self.cfg.init_state.start_calf
+        _init_joint_pose = torch.tensor([start_hip, start_thigh, start_calf] * 4, device=self.device)
+        _ETG_weight = 1.0
+        _last_ETG_act = (act_ref - _init_joint_pose) * _ETG_weight + _init_joint_pose
+        return _last_ETG_act
 
     def GetFootPositionsInBaseFrame(self):
         foot_world = self.foot_position_world
-        foot_base = quat_rotate_inverse(self.base_quat, foot_world)
+        foot_base = self.ComputeTargetPosInWorld2BaseFrame(foot_world)
         return foot_base
 
     def GetTrueBaseRollPitchYawRate(self):
@@ -232,7 +261,7 @@ class AlienGo(LeggedRobot):
             relative_velocity, _ = pybullet.multiplyTransforms(
                 [0, 0, 0], orientation_inversed, angular_velocity[i],
                 pybullet.getQuaternionFromEuler([0, 0, 0]))
-            o[i] = torch.from_numpy(np.asarray(relative_velocity))
+            o[i] = torch.from_numpy(np.asarray(relative_velocity)).to(self.device).float()
         return o
 
     def GetFootContacts(self):
@@ -277,7 +306,6 @@ class AlienGo(LeggedRobot):
         self.motor_power = tv.sum(1) / 20.0
 
     def check_termination(self):
-        # super().check_termination()
         rot_mat = self.base_quat_mat
         pose = self.base_rpy
         footposition = self.GetFootPositionsInBaseFrame()  # in base frame
@@ -285,12 +313,12 @@ class AlienGo(LeggedRobot):
         base = self.base_pos
         base_std = torch.sum(torch.std(self.last_base10, dim=0), dim=-1)
         logic_1 = torch.logical_or(rot_mat[:, -1] < 0.5, torch.mean(footz, dim=-1) > -0.1)
-        logic_2 = torch.logical_or(torch.max(footz, dim=-1).values > 0, torch.logical_and(base_std <= 2e-4, self.episode_length_buf >= 10))
+        logic_2 = torch.logical_or(torch.logical_or(torch.max(footz, dim=-1).values > 0, base_std <= 2e-4), self.episode_length_buf > self.max_episode_length)
         self.reset_buf = torch.logical_or(logic_1, logic_2)
 
     def c_prec(self, v, t, m):
         # w = np.arctanh(np.sqrt(0.95)) / m  # 2.89 / m
-        w = torch.sqrt(np.arctanh(0.95)) / m  # 1.35 / m  ???
+        w = torch.sqrt(torch.arctanh(torch.tensor(0.95))) / m  # 1.35 / m  ???
         return torch.tanh(torch.pow((v - t) * w, 2))
 
     # todo: scale * dt
@@ -300,40 +328,47 @@ class AlienGo(LeggedRobot):
         return 1 - 0.5 * self.c_prec(torch.abs(roll), 0, 0.25) - 0.5 * self.c_prec(torch.abs(pitch), 0, 0.25)
 
     def _reward_height(self):
-        world_z = torch.mean(self.target_foot_hold[:, :, -1], dim=-1).unsqueeze(1)
-        r = torch.abs(self.root_states[:, 2].unsqueeze(1) - world_z - 0.405)
+        world_z = torch.mean(self.target_foot_hold[:, :, -1], dim=-1)
+        r = torch.abs(self.root_states[:, 2] - world_z - 0.405)
         return 1 - self.c_prec(r, 0, 0.15)
 
     def _reward_feet_vel(self):
         contact_state = self.foot_contact_state
+        contact_velocity = torch.zeros(self.num_envs, 4, device=self.device, requires_grad=False)
         foot_velocity = self.foot_velocity_world
         rew_feet_vel = torch.zeros(self.num_envs, device=self.device, requires_grad=False)
         for i in range(contact_state.shape[1]):
             env_ids = (contact_state[:, i] == 2).nonzero().flatten()  # first contact
-            contact_velocity = torch.norm(self.last_foot_velocity[env_ids, i], dim=-1)
-            rew_feet_vel += (-self.c_prec(contact_velocity, 0.0, 5.0))
+            if len(env_ids) != 0:
+                contact_velocity[env_ids, i] = torch.norm(self.last_foot_velocity[env_ids, i], dim=-1)
+                rew_feet_vel[env_ids] += (-self.c_prec(contact_velocity[env_ids, i], 0.0, 5.0))
         self.last_foot_velocity[:] = foot_velocity[:]
         return rew_feet_vel
 
     def _reward_feet_pos(self):
         contact_state = self.foot_contact_state
         contact_position = self.foot_position_world
+        feet_errors = torch.zeros(self.num_envs, 4, 3, device=self.device, requires_grad=False)
+        feet_length_err = torch.zeros(self.num_envs, 4, device=self.device, requires_grad=False)
+        rew = torch.zeros(self.num_envs, device=self.device, requires_grad=False)
         rew_feet_length = torch.zeros(self.num_envs, device=self.device, requires_grad=False)
-        for i in range(contact_state.shape[1]):
+        for i in range(contact_state.shape[1]):  # i is foot_id
             env_ids = (contact_state[:, i] == 3).nonzero().flatten()  # left contact
-            if env_ids:
+            if len(env_ids) != 0:
                 self.foothold[env_ids, i] = self.target_foot_hold[env_ids, i]
             env_ids = (contact_state[:, i] == 2).nonzero().flatten()  # first contact
-            if env_ids:
+            if len(env_ids) != 0:
                 contact_position[env_ids, i, 2] -= 0.02  # foot radius
-                feet_errors = self.foothold[env_ids, i] - contact_position[env_ids, i]
-                feet_length_err = torch.norm(feet_errors, dim=-1)
-                rew = (1 - self.c_prec(feet_length_err, 0, 0.2))
-                rew_feet_length += rew  # positive reward
+
+                feet_errors[env_ids, i] = self.foothold[env_ids, i] - contact_position[env_ids, i]
+                feet_length_err[env_ids] = torch.norm(feet_errors[env_ids], dim=-1)
+                rew[env_ids] = (1 - self.c_prec(feet_length_err[env_ids, i], 0, 0.2))
+                rew_feet_length[env_ids] += rew[env_ids]  # positive reward
+
                 for ids in env_ids:
-                    self.feet_length_error[ids].append(feet_length_err[ids])
-                    if feet_length_err[ids] < 0.035:
-                        self.contact_ok_num += 1
+                    self.feet_length_error[ids].append(feet_length_err[ids, i])
+                    if feet_length_err[ids, i] < 0.035:
+                        self.contact_ok_num[ids] += 1
         return rew_feet_length
 
     def _reward_action_rate(self):
@@ -353,14 +388,17 @@ class AlienGo(LeggedRobot):
 
             flag = torch.logical_or((self.feet_air_time[:, i] % traj_period) < 1e-5, (traj_period - self.feet_air_time[:, i] % traj_period) < 1e-5)
             env_ids = flag.nonzero().flatten()
-            rew_airtime[env_ids] += -1.0
+            if len(env_ids) != 0:
+                rew_airtime[env_ids] += -1.0
 
             env_ids = (contact_state[:, i] == 2).nonzero().flatten()
-            airtime_err[env_ids] = torch.abs(self.feet_air_time[env_ids, i] - traj_period / 2)
-            rew_airtime[env_ids] += (-self.c_prec(airtime_err, 0, traj_period / 4))
+            if len(env_ids) != 0:
+                airtime_err[env_ids] = torch.abs(self.feet_air_time[env_ids, i] - traj_period / 2)
+                rew_airtime[env_ids] += (-self.c_prec(airtime_err[env_ids], 0, traj_period / 4))
 
             env_ids = torch.logical_or(contact_state[:, i] == 2, contact_state[:, i] == 3)
-            self.feet_air_time[env_ids, i] = 0
+            if len(env_ids) != 0:
+                self.feet_air_time[env_ids, i] = 0
         return rew_airtime
 
     def _reward_feet_slip(self):
@@ -377,7 +415,7 @@ class AlienGo(LeggedRobot):
         return -self.GetBadFootContacts()
 
     def _reward_footcontact(self):
-        lose_contact_num = torch.sum(1.0 - self.real_contact, dim=-1)
+        lose_contact_num = torch.sum(torch.logical_not(self.real_contact), dim=-1)
         return torch.max(lose_contact_num - 2, torch.zeros_like(lose_contact_num))
 
     def _reward_done(self):

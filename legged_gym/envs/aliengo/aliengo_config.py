@@ -12,7 +12,7 @@ class AlienGoCfg(LeggedRobotCfg):
         measure_heights = False
 
     class init_state(LeggedRobotCfg.init_state):
-        pos = [0.0, 0.0, 0.42]  # x,y,z [m]
+        pos = [0.0, 0.0, 0.44]  # x,y,z [m]
         start_hip = 0.
         start_thigh = 0.69
         start_calf = -1.42
@@ -39,7 +39,7 @@ class AlienGoCfg(LeggedRobotCfg):
         # PD Drive parameters:
         control_type = 'P'
         stiffness = {'joint': 120.}  # [N*m/rad]
-        damping = {'joint': 3.5}     # [N*m*s/rad]
+        damping = {'joint': 1.5}     # [N*m*s/rad]
         # action scale: target angle = actionScale * action + defaultAngle
         action_scale = 0.25  # attention: also scaled tg!!!
         # decimation: Number of control action updates @ sim DT per policy DT
@@ -71,7 +71,7 @@ class AlienGoCfg(LeggedRobotCfg):
         soft_dof_vel_limit = 0.9
         soft_torque_limit = 0.9
         only_positive_rewards = True
-        class scales ( LeggedRobotCfg.rewards.scales ):
+        class scales:
             # termination = -200.
             # tracking_ang_vel = 1.0
             # torques = -5.e-6
@@ -99,11 +99,11 @@ class AlienGoCfg(LeggedRobotCfg):
             joint_deviation = 0.0
             body_motion = 0.0
 
-            velx = 1.
-            contact_nums = 1.
-            contact_errs = 1.
-            contact_rate = 1.
-            energy_sum = 1.
+            # velx = 1.
+            # contact_nums = 1.
+            # contact_errs = 1.
+            # contact_rate = 1.
+            # energy_sum = 1.
 
     class commands(LeggedRobotCfg.commands):
         heading_command = False
@@ -113,7 +113,7 @@ class AlienGoCfg(LeggedRobotCfg):
 
     class sim(LeggedRobotCfg.sim):
         up_axis = 1  # 0 is y, 1 is z
-        dt = 0.002
+        dt = 0.002  # dt = 0.002 * 5 = 0.01
 
 
 class AlienGoCfgPPO(LeggedRobotCfgPPO):

@@ -40,8 +40,6 @@ from rsl_rl.algorithms import PPO
 from rsl_rl.modules import ActorCritic, ActorCriticRecurrent
 from rsl_rl.env import VecEnv
 
-from .simple_openloop import ETGOffsetGenerator
-
 
 class OnPolicyRunner:
 
@@ -82,9 +80,6 @@ class OnPolicyRunner:
         self.current_learning_iteration = 0
 
         _, _ = self.env.reset()
-
-        self.ETG = ETGOffsetGenerator(ETG_T=0.5, dt=0.01)
-        self.ETG.reset()
     
     def learn(self, num_learning_iterations, init_at_random_ep_len=False):
         # initialize writer
@@ -111,11 +106,7 @@ class OnPolicyRunner:
             # Rollout
             with torch.inference_mode():
                 for i in range(int(self.num_steps_per_env)):
-                    actions_net = self.alg.act(obs, critic_obs)
-                    # actions_net = torch.zeros_like(actions_net)
-                    etg_actions = torch.from_numpy(self.ETG.get_action(current_time=self.env.common_step_counter * self.env.dt)).to(self.device).float()
-                    etg_actions = etg_actions - self.env.default_dof_pos
-                    actions = actions_net + etg_actions
+                    actions = self.alg.act(obs, critic_obs)
                     # actions = torch.zeros_like(actions)
                     obs, privileged_obs, rewards, dones, infos = self.env.step(actions)
                     # print(self.env.common_step_counter)
