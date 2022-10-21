@@ -34,6 +34,7 @@ import numpy as np
 from isaacgym.torch_utils import quat_apply, normalize
 from typing import Tuple
 
+
 # @ torch.jit.script
 def quat_apply_yaw(quat, vec):
     quat_yaw = quat.clone().view(-1, 4)
@@ -41,19 +42,22 @@ def quat_apply_yaw(quat, vec):
     quat_yaw = normalize(quat_yaw)
     return quat_apply(quat_yaw, vec)
 
+
 # @ torch.jit.script
 def wrap_to_pi(angles):
-    angles %= 2*np.pi
-    angles -= 2*np.pi * (angles > np.pi)
+    angles %= 2 * np.pi
+    angles -= 2 * np.pi * (angles > np.pi)
     return angles
+
 
 # @ torch.jit.script
 def torch_rand_sqrt_float(lower, upper, shape, device):
     # type: (float, float, Tuple[int, int], str) -> Tensor
-    r = 2*torch.rand(*shape, device=device) - 1
-    r = torch.where(r<0., -torch.sqrt(-r), torch.sqrt(r))
-    r =  (r + 1.) / 2.
+    r = 2 * torch.rand(*shape, device=device) - 1
+    r = torch.where(r < 0., -torch.sqrt(-r), torch.sqrt(r))
+    r = (r + 1.) / 2.
     return (upper - lower) * r + lower
+
 
 def quaternion_to_matrix(quaternions):
     """
@@ -83,7 +87,8 @@ def quaternion_to_matrix(quaternions):
         ),
         -1,
     )
-    return o.reshape(quaternions.shape[:-1] + (9,))
+    return o.reshape(quaternions.shape[:-1] + (3, 3))
+
 
 def quaternion_to_euler(quaternions):
     """
@@ -100,9 +105,9 @@ def quaternion_to_euler(quaternions):
 
     o = torch.stack(
         (
-        torch.atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y)),
-        torch.asin(2 * (w * y - z * x)),
-        torch.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)),
+            torch.atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y)),
+            torch.asin(2 * (w * y - z * x)),
+            torch.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)),
         ),
-        -1,)
+        -1, )
     return o.reshape(quaternions.shape[:-1] + (3,))
