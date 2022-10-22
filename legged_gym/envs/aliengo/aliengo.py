@@ -101,16 +101,17 @@ class AlienGo(LeggedRobot):
         """
         Computes observations
         """
-        self.obs_buf = torch.cat((self.foot_command,  # 12
-                                  self.base_rpy,  # 3
-                                  self.base_rpy_rate,  # 3
-                                  self.base_lin_vel,  # 3
-                                  self.real_contact,  # 4
-                                  self.dof_pos,  # 12
-                                  self.dof_vel,  # 12
-                                  self.feet_air_time,  # 4
-                                  self.actions,  # 12
-                                  ), dim=-1)
+        self.obs_buf = torch.cat((
+            self.foot_command,  # 12
+            self.base_rpy,  # 3
+            self.base_rpy_rate,  # 3
+            self.base_lin_vel,  # 3
+            self.real_contact,  # 4
+            self.dof_pos,  # 12
+            self.dof_vel,  # 12
+            self.feet_air_time,  # 4
+            self.actions,  # 12
+        ), dim=-1)
         # add perceptive inputs if not blind
         if self.cfg.terrain.measure_heights:
             heights = torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements
@@ -219,17 +220,24 @@ class AlienGo(LeggedRobot):
         # local_link_pos = torch.zeros(self.num_envs, 4, 3, device=self.device, requires_grad=False)
         # for env_id in range(self.num_envs):
         #     local_link_pos[env_id] = (torch.mm(R_robot_in_world[env_id].inverse(), foot_in_world[env_id].T) - torch.mm(R_robot_in_world[env_id].inverse(),
-        local_link_pos = (torch.matmul(R_robot_in_world.inverse(), foot_in_world.transpose(1, 2)) - torch.matmul(R_robot_in_world.inverse(),
-                                                                                                                 P_robot_in_world_ori.unsqueeze(-1))).transpose(1, 2)  # envs_num * 4 * 3
+
+        local_link_pos = (
+                R_robot_in_world.inverse() @ foot_in_world.transpose(1, 2)
+                - R_robot_in_world.inverse() @ P_robot_in_world_ori.unsqueeze(-1)
+        ).transpose(1, 2)
         return local_link_pos
 
     def prepare_TG_table(self):
-        self.act_ref = torch.from_numpy(np.array(self.ETG._action_table)).to(self.device)
+        self.act_ref = torch.as_tensor(np.array(self.ETG._action_table), device=self.device)
 
     def get_etg_actions(self, current_time):
         time_index = ((current_time % self.ETG.ETG_T) / self.ETG.dt).long()
         act_ref = self.act_ref[time_index]
-        start_hip, start_thigh, start_calf = self.cfg.init_state.start_hip, self.cfg.init_state.start_thigh, self.cfg.init_state.start_calf
+        start_hip, start_thigh, start_calf = (
+            self.cfg.init_state.start_hip,
+            self.cfg.init_state.start_thigh,
+            self.cfg.init_state.start_calf
+        )
         _init_joint_pose = torch.tensor([start_hip, start_thigh, start_calf] * 4, device=self.device)
         _ETG_weight = 1.0
         _last_ETG_act = (act_ref - _init_joint_pose) * _ETG_weight + _init_joint_pose
@@ -248,7 +256,7 @@ class AlienGo(LeggedRobot):
         return contacts
 
     def GetBadFootContacts(self):
-        body_indices = [idx for idx in np.arange(self.num_bodies) if idx not in self.feet_indices]
+        body_indices = [idx for idx in range(self.num_bodies) if idx not in self.feet_indices]
         bad_num = (torch.norm(self.contact_forces[:, body_indices, :], dim=-1) > 1.).count_nonzero(dim=-1)
         return bad_num
 
@@ -280,7 +288,9 @@ class AlienGo(LeggedRobot):
 
     def GetEnergyConsumptionPerControlStep(self):
         for i in range(self.num_envs):
-            self.energy[i] = torch.abs(torch.dot(self.torques[i], self.dof_vel[i])) * self.dt * self.cfg.init_state.num_steps_per_policy
+            self.energy[i] = torch.abs(
+                torch.dot(self.torques[i], self.dof_vel[i])
+            ) * self.dt * self.cfg.init_state.num_steps_per_policy
 
     def GetCostOfTransport(self):
         tv = self.torques * self.dof_vel
