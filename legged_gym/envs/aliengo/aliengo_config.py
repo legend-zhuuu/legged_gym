@@ -39,9 +39,9 @@ class AlienGoCfg(LeggedRobotCfg):
         # PD Drive parameters:
         control_type = 'P'
         stiffness = {'joint': 120.}  # [N*m/rad]
-        damping = {'joint': 1.5}     # [N*m*s/rad]
+        damping = {'joint': 1.5}  # [N*m*s/rad]
         # action scale: target angle = actionScale * action + defaultAngle
-        action_scale = 0.25  # attention: also scaled tg!!!
+        action_scale = 0.25
         # decimation: Number of control action updates @ sim DT per policy DT
         decimation = 5
         use_actuator_network = True
@@ -71,6 +71,7 @@ class AlienGoCfg(LeggedRobotCfg):
         soft_dof_vel_limit = 0.9
         soft_torque_limit = 0.9
         only_positive_rewards = True
+
         class scales:
             # termination = -200.
             # tracking_ang_vel = 1.0
@@ -108,8 +109,14 @@ class AlienGoCfg(LeggedRobotCfg):
     class commands(LeggedRobotCfg.commands):
         heading_command = False
         resampling_time = 4.
+
         class ranges(LeggedRobotCfg.commands.ranges):
             ang_vel_yaw = [-1., 1.]
+
+    class viewer:
+        ref_env = 0
+        pos = [5, 5, 3]  # [m]
+        lookat = [0., 0., 0.]  # [m]
 
     class sim(LeggedRobotCfg.sim):
         up_axis = 1  # 0 is y, 1 is z
@@ -117,6 +124,10 @@ class AlienGoCfg(LeggedRobotCfg):
 
 
 class AlienGoCfgPPO(LeggedRobotCfgPPO):
+    class policy(LeggedRobotCfgPPO.policy):
+        actor_hidden_dims = [512, 256, 128]
+        critic_hidden_dims = [512, 256, 128]
+
     class algorithm(LeggedRobotCfgPPO.algorithm):
         entropy_coef = 0.01
 

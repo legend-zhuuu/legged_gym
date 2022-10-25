@@ -105,6 +105,9 @@ class LeggedRobot(BaseTask):
         self.post_physics_step()
 
         # return clipped obs, clipped states (None), rewards, dones and infos
+
+        # if self.common_step_counter % 100 == 0:
+        #     print("step:", self.common_step_counter)
         clip_obs = self.cfg.normalization.clip_observations
         self.obs_buf = torch.clip(self.obs_buf, -clip_obs, clip_obs)
         if self.privileged_obs_buf is not None:
