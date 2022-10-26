@@ -44,7 +44,7 @@ class AlienGoCfg(LeggedRobotCfg):
         action_scale = 1  # control add policy action or not
         # decimation: Number of control action updates @ sim DT per policy DT
         decimation = 5
-        use_actuator_network = True
+        use_actuator_network = False
         actuator_net_file = "{LEGGED_GYM_ROOT_DIR}/resources/ETG/ac2f10ms.onnx"
         use_plotjungler = False
 
@@ -53,7 +53,7 @@ class AlienGoCfg(LeggedRobotCfg):
         name = "aliengo"
         foot_name = "foot"
         penalize_contacts_on = ["thigh", "calf"]
-        terminate_after_contacts_on = ["base"]
+        terminate_after_contacts_on = ["base", "thigh"]
         self_collisions = 1  # 1 to disable, 0 to enable...bitwise filter
         disable_gravity = False
         collapse_fixed_joints = True  # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
