@@ -224,11 +224,12 @@ class OnPolicyRunner:
 
     def load(self, path, load_optimizer=True, map_location='cuda:0'):
         loaded_dict = torch.load(path, map_location=map_location)
-        self.alg.actor_critic.load_state_dict(loaded_dict['model_state_dict'])
+        self.alg.actor_critic.load_state_dict(loaded_dict['model_state_dict'], strict=False)
+        load_optimizer = False
         if load_optimizer:
             self.alg.optimizer.load_state_dict(loaded_dict['optimizer_state_dict'])
-        self.current_learning_iteration = loaded_dict['iter']
-        return loaded_dict['infos']
+        # self.current_learning_iteration = loaded_dict['iter']
+        return loaded_dict.get('infos', {})
 
     def get_inference_policy(self, device=None):
         self.alg.actor_critic.eval() # switch to evaluation mode (dropout for example)
