@@ -3,13 +3,22 @@ from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobot
 
 class AlienGoCfg(LeggedRobotCfg):
     class env(LeggedRobotCfg.env):
-        num_envs = 1024
+        num_envs = 4096
         num_actions = 12
         num_observations = 65
+        episode_length_s = 10  # episode length in seconds
 
     class terrain(LeggedRobotCfg.terrain):
         mesh_type = 'plane'
         measure_heights = False
+        curriculum = False
+
+    class commands(LeggedRobotCfg.commands):
+        heading_command = False
+        resampling_time = 4.
+
+        class ranges(LeggedRobotCfg.commands.ranges):
+            ang_vel_yaw = [-1., 1.]
 
     class init_state(LeggedRobotCfg.init_state):
         pos = [0.0, 0.0, 0.42]  # x,y,z [m]
@@ -44,8 +53,9 @@ class AlienGoCfg(LeggedRobotCfg):
         action_scale = 1  # control add policy action or not
         # decimation: Number of control action updates @ sim DT per policy DT
         decimation = 5
-        use_actuator_network = False
-        actuator_net_file = "{LEGGED_GYM_ROOT_DIR}/resources/ETG/ac2f10ms.onnx"
+        use_actuator_network = True
+        # actuator_net_file = "{LEGGED_GYM_ROOT_DIR}/resources/ETG/ac2f10ms.onnx"
+        actuator_net_file = "{LEGGED_GYM_ROOT_DIR}/resources/ETG/actuator_net.pt"
         use_plotjungler = False
 
     class asset(LeggedRobotCfg.asset):
@@ -107,16 +117,10 @@ class AlienGoCfg(LeggedRobotCfg):
             # contact_rate = 1.
             # energy_sum = 1.
 
-    class commands(LeggedRobotCfg.commands):
-        heading_command = False
-        resampling_time = 4.
-
-        class ranges(LeggedRobotCfg.commands.ranges):
-            ang_vel_yaw = [-1., 1.]
-
     class noise:
         add_noise = False
-        noise_level = 1.0 # scales other values
+        noise_level = 1.0  # scales other values
+
         class noise_scales:
             dof_pos = 0.01
             dof_vel = 1.5

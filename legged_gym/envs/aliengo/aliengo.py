@@ -14,6 +14,7 @@ from legged_gym.utils.math import quaternion_to_matrix, quaternion_to_euler
 from .aliengo_config import AlienGoCfg
 
 from .laikago_motor import ActuatorNetMotorModel
+from .actuator import Actuator
 from .simple_openloop import ETGOffsetGenerator
 
 
@@ -44,7 +45,8 @@ class AlienGo(LeggedRobot):
 
         if self.cfg.control.use_actuator_network:
             actuator_network_path = self.cfg.control.actuator_net_file.format(LEGGED_GYM_ROOT_DIR=LEGGED_GYM_ROOT_DIR)
-            self.actuator_network = ActuatorNetMotorModel(actuator_network_path)
+            # self.actuator_network = ActuatorNetMotorModel(actuator_network_path)
+            self.actuator_network = Actuator(actuator_network_path, self.num_envs, self.num_actions, device=self.device)
 
         self.ETG = ETGOffsetGenerator(ETG_T=0.6, dt=0.01)
         self.ETG.reset()
@@ -58,7 +60,7 @@ class AlienGo(LeggedRobot):
         actions = actions * self.cfg.control.action_scale * policy_action_scale + etg_actions + self.default_dof_pos  # abs dof pos
         super().step(actions)
         if self.cfg.control.use_plotjungler:
-            self._data_publisher.send({
+            state_dict = {
                 'foot_command': self.foot_command.cpu().numpy().tolist(),
                 'base_pos': self.base_pos.cpu().numpy().tolist(),
                 'foot_pos': self.foot_position_world.cpu().numpy().tolist(),
@@ -73,6 +75,15 @@ class AlienGo(LeggedRobot):
                 'target_foot_hold': self.target_foot_hold.cpu().numpy().tolist(),
                 'foot_contact_state': self.foot_contact_state.cpu().numpy().tolist(),
                 'torques': self.torques.cpu().numpy().tolist(),
+                'foot_vel': self.foot_velocity_world.cpu().numpy().tolist(),
+            }
+            reward_dict = {}
+            for key in self.episode_sums.keys():
+                reward_dict['rew_' + key] = self.reward_plot[key].cpu().numpy().tolist()
+
+            self._data_publisher.send({
+                'state_dict': state_dict,
+                'reward_dict': reward_dict,
             })
         return self.obs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
 
@@ -153,9 +164,11 @@ class AlienGo(LeggedRobot):
         footz = footposition[:, :, -1]
         base_std = torch.sum(torch.std(self.last_base10, dim=0), dim=-1)
         logic_1 = torch.logical_or(rot_mat[:, -1] < 0.5, torch.mean(footz, dim=-1) > -0.1)
-        logic_2 = torch.logical_or(torch.logical_or(torch.max(footz, dim=-1).values > 0, base_std <= 2e-4), self.episode_length_buf > self.max_episode_length)
+        logic_2 = torch.logical_or(torch.max(footz, dim=-1).values > 0, base_std <= 2e-4)
         self.reset_buf = torch.logical_or(logic_1, logic_2)
         self.reset_buf |= torch.any(torch.norm(self.contact_forces[:, self.termination_contact_indices, :], dim=-1) > 1., dim=1)
+        self.time_out_buf = self.episode_length_buf > self.max_episode_length  # no terminal reward for time-outs
+        self.reset_buf |= self.time_out_buf
         # self.reset_buf = torch.logical_and(logic_1, logic_2)
 
     def compute_observations(self):
@@ -197,6 +210,26 @@ class AlienGo(LeggedRobot):
         self.foot_command = self.ComputeTargetPosInWorld2FootFrame(self.target_foot_hold)
         self.energy_sum[env_ids] = 0.
 
+    def compute_reward(self):
+        """ Compute rewards
+            Calls each reward function which had a non-zero scale (processed in self._prepare_reward_function())
+            adds each terms to the episode sums and to the total reward
+        """
+        self.rew_buf[:] = 0.
+        for i in range(len(self.reward_functions)):
+            name = self.reward_names[i]
+            rew = self.reward_functions[i]() * self.reward_scales[name]
+            self.rew_buf += rew
+            self.episode_sums[name] += rew
+            self.reward_plot[name] = rew / self.dt
+        if self.cfg.rewards.only_positive_rewards:
+            self.rew_buf[:] = torch.clip(self.rew_buf[:], min=0.)
+        # add termination reward after clipping
+        if "termination" in self.reward_scales:
+            rew = self._reward_termination() * self.reward_scales["termination"]
+            self.rew_buf += rew
+            self.episode_sums["termination"] += rew
+
     def _reset_base_states(self, env_ids):
         # self.base_pos[env_ids] = self.root_states[env_ids, :3]
         self.base_quat_mat[env_ids] = quaternion_to_matrix(self.base_quat[env_ids]).reshape(len(env_ids), 9)
@@ -206,10 +239,9 @@ class AlienGo(LeggedRobot):
 
     def _compute_torques(self, actions):
         if self.cfg.control.use_actuator_network:
-            _actions = actions.cpu().numpy()
-            dof_pos, dof_vel = self.dof_pos.cpu().numpy(), self.dof_vel.cpu().numpy()
+            dof_pos, dof_vel = self.dof_pos, self.dof_vel
             # print("tar, pos, vel:", _actions[0][:3], dof_pos[0][:3], dof_vel[0][:3], sep="\n")
-            torques = torch.from_numpy(self.actuator_network.convert_to_torque(_actions, dof_pos, dof_vel)[0]).to(self.device).float()
+            torques = self.actuator_network.convert_to_torque(actions, dof_pos, dof_vel)
             return torques
         else:
             # pd controller
@@ -247,10 +279,12 @@ class AlienGo(LeggedRobot):
         self.transport_cost = torch.zeros(self.num_envs, device=self.device, requires_grad=False)
         self.motor_power = torch.zeros(self.num_envs, device=self.device, requires_grad=False)
 
+        self.reward_plot = {}
+
     def foot_command_rand(self, env_ids):
-        foot_dx = torch.rand(len(env_ids), 4, device=self.device, requires_grad=False) * 0.4 - 0.1
-        # foot_dx = torch.ones(len(env_ids), 4, device=self.device, requires_grad=False) * 0.2
-        dy = torch.rand(len(env_ids), 2, device=self.device, requires_grad=False) * 0.4 - 0.2
+        foot_dx = torch.rand(len(env_ids), 4, device=self.device, requires_grad=False) * 0.2 - 0.1
+        # foot_dx = torch.ones(len(env_ids), 4, device=self.device, requires_grad=False) * 0.
+        dy = torch.rand(len(env_ids), 2, device=self.device, requires_grad=False) * 0.2 - 0.1
         foot_dy = torch.hstack((dy, dy.flip(dims=[-1])))
         # foot_dy = torch.zeros_like(foot_dy)
         foot_dz = torch.zeros(len(env_ids), 4, device=self.device, requires_grad=False)
@@ -288,7 +322,7 @@ class AlienGo(LeggedRobot):
         foot_in_world = target_foot_hold  # env_nums * 4 * 3
 
         local_link_pos = (R_robot_in_world.inverse() @ (
-                 foot_in_world.transpose(1, 2) - P_robot_in_world_ori.unsqueeze(-1)
+                foot_in_world.transpose(1, 2) - P_robot_in_world_ori.unsqueeze(-1)
         )).transpose(1, 2) - self.BASE_FOOT
         return local_link_pos
 
@@ -300,8 +334,8 @@ class AlienGo(LeggedRobot):
         foot_in_world = world_foot  # env_nums * 4 * 3
 
         local_link_pos = (R_robot_in_world.inverse() @ (
-                 foot_in_world.transpose(1, 2) - P_robot_in_world_ori.unsqueeze(-1)
-                         )).transpose(1, 2)
+                foot_in_world.transpose(1, 2) - P_robot_in_world_ori.unsqueeze(-1)
+        )).transpose(1, 2)
         return local_link_pos
 
     def prepare_TG_table(self):
@@ -428,9 +462,7 @@ class AlienGo(LeggedRobot):
         return rew_feet_length.sum(dim=-1)
 
     def _reward_action_rate(self):
-        new_action = self.actions
-        r1 = torch.sum(torch.square(new_action - self.last_actions), dim=-1)
-        self.last_actions = new_action
+        r1 = torch.sum(torch.square(self.actions - self.last_actions), dim=-1)
         return 1 - self.c_prec(r1, 0, 0.2)
 
     def _reward_feet_airtime(self):
@@ -446,7 +478,7 @@ class AlienGo(LeggedRobot):
         env_ids, foot_ids = feet_stand_long.nonzero(as_tuple=True)
         rew_airtime[env_ids, foot_ids] += -1.
 
-        env_ids, foot_ids = (contact_state == 2).nonzero(as_tuple=True)
+        env_ids, foot_ids = (contact_state == 2).nonzero(as_tuple=True)  # first contact
         airtime_err[env_ids, foot_ids] = torch.abs(self.feet_air_time[env_ids, foot_ids] - traj_period / 2)
         rew_airtime[env_ids, foot_ids] += (-self.c_prec(airtime_err[env_ids, foot_ids], 0, traj_period / 4))
 

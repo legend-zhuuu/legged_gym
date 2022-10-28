@@ -38,22 +38,11 @@ class ActuatorNetMotorModel(object):
         self._kp = kp
         self._kd = kd
         self._torque_limits = torque_limits
-        if torque_limits is not None:
-            if isinstance(torque_limits, (Sequence, np.ndarray)):
-                self._torque_limits = np.asarray(torque_limits)
-            else:
-                self._torque_limits = np.full(NUM_MOTORS, torque_limits)
-        # self.actuator_net = ActuatorNetWithHistory()
-        # self.actuator_net.load_state_dict(torch.load("data/actuator_net_with_history.pt",
-        #                                              map_location=torch.device('cpu'))['model'])
-        # self.actuator_net.to(torch.device("cuda"))
+
         opts = ort.SessionOptions()
         opts.inter_op_num_threads = 1
         opts.intra_op_num_threads = 1
-        # self.ort_session = ort.InferenceSession("data/actuator_net.onnx", opts)  # P150D4(-1 -2 -3)
-        # self.ort_session = ort.InferenceSession("data/0821actuator_net(-3).onnx", opts)
-        # self.ort_session = ort.InferenceSession("data/904f210ms.onnx", opts)  # P150D4(-1 -3)
-        self.ort_session = ort.InferenceSession(net_path, opts)  # P120D3(-1 -3)
+        self.ort_session = ort.InferenceSession(net_path, opts, providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])  # P120D3(-1 -3)
 
     def set_strength_ratios(self, ratios):
         """Set the strength of each motors relative to the default value.
@@ -80,6 +69,15 @@ class ActuatorNetMotorModel(object):
                           motor_commands,
                           motor_angle,
                           motor_velocity):
+        """
+        :param motor_commands: actions :tensor
+        :param motor_angle: position :tensor
+        :param motor_velocity: velocity :tensor
+        :return: torques :tensor
+        """
+        # device_type = motor_commands.device.type
+        # device_id = motor_commands.device.index
+
         angle_err = motor_commands - motor_angle
         if not hasattr(self, "angle_err_buffer"):
             self.angle_err_buffer = collections.deque((angle_err,) * 10, maxlen=10)
@@ -87,7 +85,7 @@ class ActuatorNetMotorModel(object):
         if not hasattr(self, "velocity_buffer"):
             self.velocity_buffer = collections.deque((motor_velocity,) * 10, maxlen=10)
         self.velocity_buffer.append(motor_velocity)
-        time0 = time.time()
+
         motor_torques = np.zeros(motor_commands.shape)
         # actnet_input = np.array((self.angle_err_buffer[-1], self.angle_err_buffer[-2], self.angle_err_buffer[-3],
         #     self.velocity_buffer[-1], self.velocity_buffer[-2], self.velocity_buffer[-3]), dtype=np.float32).transpose()
@@ -95,13 +93,11 @@ class ActuatorNetMotorModel(object):
         for i in range(motor_torques.shape[0]):
             actnet_input = np.array((self.angle_err_buffer[-1][i], self.angle_err_buffer[-2][i],
                                      self.velocity_buffer[-1][i], self.velocity_buffer[-2][i]), dtype=np.float32).transpose()
+            actnet_input = np.ones_like(actnet_input) / 10
             torques = self.ort_session.run(['output'], {'input': actnet_input}, )[0]
+            print(torques)
             motor_torques[i] = torques.flatten()
-        # print("actnet time: ", (time.time() - time0) * 1000)
+
         if self._torque_limits is not None:
-            if len(self._torque_limits) != motor_torques.shape[1]:
-                raise ValueError(
-                    "Torque limits dimension does not match the number of motors.")
-            motor_torques = np.clip(motor_torques, -1.0 * self._torque_limits,
-                                    self._torque_limits)
-        return motor_torques, motor_torques
+            motor_torques = np.clip(motor_torques, -1.0 * self._torque_limits, self._torque_limits)
+        return motor_torques
