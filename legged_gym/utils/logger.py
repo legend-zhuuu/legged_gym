@@ -37,6 +37,7 @@ class Logger:
     def __init__(self, dt):
         self.state_log = defaultdict(list)
         self.rew_log = defaultdict(list)
+        self.sta_log = defaultdict(list)
         self.dt = dt
         self.num_episodes = 0
         self.plot_process = None
@@ -52,11 +53,14 @@ class Logger:
         for key, value in dict.items():
             if 'rew' in key:
                 self.rew_log[key].append(value.item() * num_episodes)
+            elif 'sta' in key:
+                self.sta_log[key].append(value.item() * num_episodes)
         self.num_episodes += num_episodes
 
     def reset(self):
         self.state_log.clear()
         self.rew_log.clear()
+        self.sta_log.clear()
 
     def plot_states(self):
         self.plot_process = Process(target=self._plot)
@@ -126,8 +130,12 @@ class Logger:
         plt.show()
 
     def print_rewards(self):
-        print("Average rewards per second:")
+        print("Average rewards per 1000 steps:")
         for key, values in self.rew_log.items():
+            mean = np.sum(np.array(values)) / self.num_episodes
+            print(f" - {key}: {mean}")
+        print("Average statistics info per 1000 steps:")
+        for key, values in self.sta_log.items():
             mean = np.sum(np.array(values)) / self.num_episodes
             print(f" - {key}: {mean}")
         print(f"Total number of episodes: {self.num_episodes}")

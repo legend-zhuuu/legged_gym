@@ -6,6 +6,7 @@ from time import time
 import random
 import torch
 import numpy as np
+import wandb
 from isaacgym import gymtorch, gymapi, gymutil
 from isaacgym.torch_utils import quat_rotate_inverse
 from legged_gym.envs import LeggedRobot
@@ -209,6 +210,12 @@ class AlienGo(LeggedRobot):
             self.target_foot_hold[env_ids_mesh, foot_ids] = self.ComputeTargetPosInBase2WorldFrame(env_ids_mesh, foot_ids)
         self.foot_command = self.ComputeTargetPosInWorld2FootFrame(self.target_foot_hold)
         self.energy_sum[env_ids] = 0.
+        if self.info_statistics["sta_foot_contact_times"] == 0:
+            self.extras["episode"]["sta_foot_contact_error"] = 0
+        else:
+            self.extras["episode"]["sta_foot_contact_error"] = self.info_statistics["sta_foot_contact_error_sum"] / self.info_statistics["sta_foot_contact_times"]
+        for key in self.info_statistics.keys():
+            self.info_statistics[key] = 0
 
     def compute_reward(self):
         """ Compute rewards
@@ -216,12 +223,14 @@ class AlienGo(LeggedRobot):
             adds each terms to the episode sums and to the total reward
         """
         self.rew_buf[:] = 0.
+        wandb_rew_buf = dict()
         for i in range(len(self.reward_functions)):
             name = self.reward_names[i]
             rew = self.reward_functions[i]() * self.reward_scales[name]
             self.rew_buf += rew
             self.episode_sums[name] += rew
             self.reward_plot[name] = rew / self.dt
+            wandb_rew_buf.update({name: torch.sum(rew) / self.num_envs})
         if self.cfg.rewards.only_positive_rewards:
             self.rew_buf[:] = torch.clip(self.rew_buf[:], min=0.)
         # add termination reward after clipping
@@ -229,6 +238,9 @@ class AlienGo(LeggedRobot):
             rew = self._reward_termination() * self.reward_scales["termination"]
             self.rew_buf += rew
             self.episode_sums["termination"] += rew
+        wandb_rew_buf.update({"reward": torch.sum(self.rew_buf) / self.num_envs})
+        if self.cfg.control.wandb_log:
+            wandb.log(wandb_rew_buf)
 
     def _reset_base_states(self, env_ids):
         # self.base_pos[env_ids] = self.root_states[env_ids, :3]
@@ -280,19 +292,31 @@ class AlienGo(LeggedRobot):
         self.motor_power = torch.zeros(self.num_envs, device=self.device, requires_grad=False)
 
         self.reward_plot = {}
+        self.init_info_statistics()
+
+    def init_info_statistics(self):
+        # all info you want to pass out
+        self.info_statistics = {}
+        self.info_statistics["sta_foot_contact_error_sum"] = 0
+        self.info_statistics["sta_foot_contact_times"] = 0
 
     def foot_command_rand(self, env_ids):
-        foot_dx = torch.rand(len(env_ids), 4, device=self.device, requires_grad=False) * 0.2 - 0.1
+        foot_dx = torch.rand(len(env_ids), 4, device=self.device, requires_grad=False) * 0.3
         # foot_dx = torch.ones(len(env_ids), 4, device=self.device, requires_grad=False) * 0.
         dy = torch.rand(len(env_ids), 2, device=self.device, requires_grad=False) * 0.2 - 0.1
         foot_dy = torch.hstack((dy, dy.flip(dims=[-1])))
-        # foot_dy = torch.zeros_like(foot_dy)
+        foot_dy = torch.zeros_like(foot_dy)
         foot_dz = torch.zeros(len(env_ids), 4, device=self.device, requires_grad=False)
         foot_command = torch.stack((foot_dx, foot_dy, foot_dz), dim=1).transpose(1, 2) + self.BASE_FOOT
         return foot_command
 
     def update_target_foot_hold(self):
         env_ids, foot_ids = (self.foot_contact_state == 3).nonzero(as_tuple=True)
+        foot_world = self.foot_position_world[env_ids, foot_ids]
+        foot_target = self.target_foot_hold[env_ids, foot_ids]
+        foot_hold_error = torch.sum(torch.norm(foot_world - foot_target, dim=-1))
+        self.info_statistics["sta_foot_contact_error_sum"] += foot_hold_error
+        self.info_statistics["sta_foot_contact_times"] += len(env_ids)  # all contact foot in num_envs envs
         self.target_foot_hold[env_ids, foot_ids] = self.ComputeTargetPosInBase2WorldFrame(env_ids, foot_ids)  # update foot targets in world
 
     def ComputeTargetPosInBase2WorldFrame(self, env_ids, foot_ids):

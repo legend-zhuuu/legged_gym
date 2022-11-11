@@ -31,6 +31,8 @@ import time
 
 from legged_gym import LEGGED_GYM_ROOT_DIR
 import os
+from datetime import datetime
+import wandb
 
 import isaacgym
 from legged_gym.envs import *
@@ -50,6 +52,7 @@ def play(args):
     env_cfg.noise.add_noise = False
     env_cfg.domain_rand.randomize_friction = False
     env_cfg.domain_rand.push_robots = False
+    env_cfg.control.wandb_log = False
 
     # prepare environment
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
@@ -69,13 +72,13 @@ def play(args):
     robot_index = 0  # which robot is used for logging
     joint_index = 1  # which joint is used for logging
     stop_state_log = 200  # number of steps before plotting states
-    stop_rew_log = env.max_episode_length  # number of steps before print average episode rewards
+    stop_rew_log = env.max_episode_length  # number of steps before print average episode rewards 1000
     camera_position = np.array(env_cfg.viewer.pos, dtype=np.float64)
     camera_vel = np.array([1., 1., 0.])
     camera_direction = np.array(env_cfg.viewer.lookat) - np.array(env_cfg.viewer.pos)
     img_idx = 0
     re = torch.zeros(env.num_envs, device=env.device)
-    for i in range(int(100.0 * env.max_episode_length) + 1):
+    for i in range(int(1.0 * env.max_episode_length) + 1):
         actions = policy(obs.detach())
         obs, _, rews, dones, infos = env.step(actions.detach())
         re += rews
@@ -108,14 +111,14 @@ def play(args):
             )
         elif i == stop_state_log:
             logger.plot_states()
-        if  0 < i < stop_rew_log:
+        if 0 < i < stop_rew_log:
             if infos["episode"]:
                 num_episodes = torch.sum(env.reset_buf).item()
                 if num_episodes > 0:
                     logger.log_rewards(infos["episode"], num_episodes)
-        elif i==stop_rew_log:
+        elif i == stop_rew_log:
             logger.print_rewards()
-    print(re.sum())
+    print("reward in {num} step: {reward}".format(num=int(1.0 * env.max_episode_length) + 1, reward=torch.mean(re)))
     time.sleep(1)
 
 

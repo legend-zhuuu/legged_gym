@@ -57,6 +57,7 @@ class AlienGoCfg(LeggedRobotCfg):
         # actuator_net_file = "{LEGGED_GYM_ROOT_DIR}/resources/ETG/ac2f10ms.onnx"
         actuator_net_file = "{LEGGED_GYM_ROOT_DIR}/resources/ETG/actuator_net.pt"
         use_plotjungler = False
+        wandb_log = True
 
     class asset(LeggedRobotCfg.asset):
         file = "{LEGGED_GYM_ROOT_DIR}/resources/robots/aliengo/urdf/aliengo.urdf"
@@ -98,9 +99,9 @@ class AlienGoCfg(LeggedRobotCfg):
             up = 0.6
             height = 0.3
             feet_vel = 2.0
-            feet_pos = 4.0
+            feet_pos = 8.0
             action_rate = 0.5
-            feet_airtime = 6.0
+            feet_airtime = 16.0
             feet_slip = 0.5
             tau = 0.02
             badfoot = 1.0
@@ -149,8 +150,9 @@ class AlienGoCfgPPO(LeggedRobotCfgPPO):
         entropy_coef = 0.01
 
     class runner(LeggedRobotCfgPPO.runner):
-        run_name = ''
-        experiment_name = 'rough_aliengo'
-        num_steps_per_policy = 5
         num_steps_per_env = 100
         max_iterations = 300
+
+        # log
+        run_name = ''
+        experiment_name = 'rough_aliengo'

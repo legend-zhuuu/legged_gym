@@ -36,12 +36,23 @@ import isaacgym
 from legged_gym.envs import *
 from legged_gym.utils import get_args, task_registry
 import torch
+import wandb
+
 
 def train(args):
     env, env_cfg = task_registry.make_env(name=args.task, args=args)
     ppo_runner, train_cfg = task_registry.make_alg_runner(env=env, name=args.task, args=args)
+
+    wandb.config = {
+        "learning_rate": train_cfg.algorithm.learning_rate,
+        "max_iterations": train_cfg.runner.max_iterations,
+        "num_envs": env_cfg.env.num_envs,
+    }
+
     ppo_runner.learn(num_learning_iterations=train_cfg.runner.max_iterations, init_at_random_ep_len=True)
 
+
 if __name__ == '__main__':
+    wandb.init(project="legged_gym", name='train: ' + datetime.now().strftime('%b%d_%H-%M-%S'))
     args = get_args()
     train(args)
