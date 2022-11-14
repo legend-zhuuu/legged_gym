@@ -211,7 +211,7 @@ class AlienGo(LeggedRobot):
         self.foot_command = self.ComputeTargetPosInWorld2FootFrame(self.target_foot_hold)
         self.energy_sum[env_ids] = 0.
         if self.info_statistics["sta_foot_contact_times"] == 0:
-            self.extras["episode"]["sta_foot_contact_error"] = 0
+            self.extras["episode"]["sta_foot_contact_error"] = torch.tensor(0., device=self.device)
         else:
             self.extras["episode"]["sta_foot_contact_error"] = self.info_statistics["sta_foot_contact_error_sum"] / self.info_statistics["sta_foot_contact_times"]
         for key in self.info_statistics.keys():
@@ -305,7 +305,7 @@ class AlienGo(LeggedRobot):
         # foot_dx = torch.ones(len(env_ids), 4, device=self.device, requires_grad=False) * 0.
         dy = torch.rand(len(env_ids), 2, device=self.device, requires_grad=False) * 0.2 - 0.1
         foot_dy = torch.hstack((dy, dy.flip(dims=[-1])))
-        foot_dy = torch.zeros_like(foot_dy)
+        # foot_dy = torch.zeros_like(foot_dy)
         foot_dz = torch.zeros(len(env_ids), 4, device=self.device, requires_grad=False)
         foot_command = torch.stack((foot_dx, foot_dy, foot_dz), dim=1).transpose(1, 2) + self.BASE_FOOT
         return foot_command
