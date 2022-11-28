@@ -59,12 +59,23 @@ class Terrain:
         self.tot_rows = int(cfg.num_rows * self.length_per_env_pixels) + 2 * self.border
 
         self.height_field_raw = np.zeros((self.tot_rows, self.tot_cols), dtype=np.int16)
-        if cfg.curriculum:
-            self.curiculum()
-        elif cfg.selected:
-            self.selected_terrain()
-        else:
-            self.randomized_terrain()
+        # if cfg.curriculum:
+        #     self.curiculum()
+        # elif cfg.selected:
+        #     self.selected_terrain()
+        # else:
+        #     self.randomized_terrain()
+        # terrain = terrain_utils.SubTerrain("terrain",
+        #                                    width=self.width_per_env_pixels,
+        #                                    length=self.width_per_env_pixels,
+        #                                    vertical_scale=self.cfg.vertical_scale,
+        #                                    horizontal_scale=self.cfg.horizontal_scale)
+        # terrain_utils.random_uniform_terrain(terrain, min_height=0.0, max_height=0.10, step=0.005,
+        #                                      downsampled_scale=2)
+        # self.add_terrain_to_map(terrain, -1, -1)
+        # self.add_terrain_to_map(terrain, -1, 0)
+        # self.add_terrain_to_map(terrain, 0, 0)
+        # self.add_terrain_to_map(terrain, 0, -1)
 
         self.heightsamples = self.height_field_raw
         if self.type == "trimesh":
@@ -101,8 +112,8 @@ class Terrain:
             terrain = terrain_utils.SubTerrain("terrain",
                                                width=self.width_per_env_pixels,
                                                length=self.width_per_env_pixels,
-                                               vertical_scale=self.vertical_scale,
-                                               horizontal_scale=self.horizontal_scale)
+                                               vertical_scale=self.cfg.vertical_scale,
+                                               horizontal_scale=self.cfg.horizontal_scale)
 
             eval(terrain_type)(terrain, **self.cfg.terrain_kwargs.terrain_kwargs)
             self.add_terrain_to_map(terrain, i, j)
@@ -120,6 +131,9 @@ class Terrain:
         stone_distance = 0.05 if difficulty == 0 else 0.1
         gap_size = 1. * difficulty
         pit_depth = 1. * difficulty
+        terrain_utils.random_uniform_terrain(terrain, min_height=-0.05, max_height=0.05, step=0.005,
+                                             downsampled_scale=0.2)
+        return terrain
         if choice < self.proportions[0]:
             if choice < self.proportions[0] / 2:
                 slope *= -1

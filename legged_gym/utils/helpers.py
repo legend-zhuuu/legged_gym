@@ -149,8 +149,8 @@ def update_cfg_from_args(env_cfg, cfg_train, args):
 
     return env_cfg, cfg_train
 
-def get_args():
-    custom_parameters = [
+def get_args(custom_params=None):
+    task_parameters = [
         {"name": "--task", "type": str, "default": "anymal_c_flat", "help": "Resume training or start testing from a checkpoint. Overrides config file if provided."},
         {"name": "--resume", "action": "store_true", "default": False,  "help": "Resume training from a checkpoint"},
         {"name": "--experiment_name", "type": str,  "help": "Name of the experiment to run or load. Overrides config file if provided."},
@@ -165,10 +165,12 @@ def get_args():
         {"name": "--seed", "type": int, "help": "Random seed. Overrides config file if provided."},
         {"name": "--max_iterations", "type": int, "help": "Maximum number of training iterations. Overrides config file if provided."},
     ]
+    if custom_params is not None:
+        task_parameters += custom_params
     # parse arguments
     args = gymutil.parse_arguments(
         description="RL Policy",
-        custom_parameters=custom_parameters)
+        custom_parameters=task_parameters)
 
     # name allignment
     args.sim_device_id = args.compute_device_id

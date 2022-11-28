@@ -5,23 +5,29 @@ class AlienGoCfg(LeggedRobotCfg):
     class env(LeggedRobotCfg.env):
         num_envs = 4096
         num_actions = 12
-        num_observations = 65
+        num_observations = 64
         episode_length_s = 10  # episode length in seconds
+        use_rms = True
 
     class terrain(LeggedRobotCfg.terrain):
         mesh_type = 'plane'
+        # mesh_type = 'heightfield'
         measure_heights = False
         curriculum = False
+        # selected = True
+        terrain_kwargs = {'type': 'gap_terrain',
+                          'terrain_kwargs': None}
 
     class commands(LeggedRobotCfg.commands):
         heading_command = False
         resampling_time = 4.
+        step_cmd = False
 
         class ranges(LeggedRobotCfg.commands.ranges):
             ang_vel_yaw = [-1., 1.]
 
     class init_state(LeggedRobotCfg.init_state):
-        pos = [0.0, 0.0, 0.42]  # x,y,z [m]
+        pos = [0.0, 0.0, 0.41]  # x,y,z [m]
         start_hip = 0.
         start_thigh = 0.69
         start_calf = -1.42
@@ -47,8 +53,8 @@ class AlienGoCfg(LeggedRobotCfg):
     class control(LeggedRobotCfg.control):
         # PD Drive parameters:
         control_type = 'P'
-        stiffness = {'joint': 120.}  # [N*m/rad]
-        damping = {'joint': 1.5}  # [N*m*s/rad]
+        stiffness = {'joint': 60 }  # [N*m/rad]
+        damping = {'joint': 1 }  # [N*m*s/rad]
         # action scale: target angle = actionScale * action + defaultAngle
         action_scale = 1  # control add policy action or not
         # decimation: Number of control action updates @ sim DT per policy DT
@@ -56,7 +62,7 @@ class AlienGoCfg(LeggedRobotCfg):
         use_actuator_network = True
         # actuator_net_file = "{LEGGED_GYM_ROOT_DIR}/resources/ETG/ac2f10ms.onnx"
         actuator_net_file = "{LEGGED_GYM_ROOT_DIR}/resources/ETG/actuator_net.pt"
-        use_plotjungler = False
+        use_plotjuggler = False
         wandb_log = True
 
     class asset(LeggedRobotCfg.asset):
@@ -74,7 +80,9 @@ class AlienGoCfg(LeggedRobotCfg):
         flip_visual_attachments = True  # Some .obj meshes must be flipped from y-up to z-up
 
     class domain_rand(LeggedRobotCfg.domain_rand):
+        randomize_base_mass = True
         push_robots = False
+        scale_mass_range = [-0.2, 0.2]
 
     class rewards(LeggedRobotCfg.rewards):
         base_height_target = 0.4
@@ -96,12 +104,13 @@ class AlienGoCfg(LeggedRobotCfg):
             # feet_contact_forces = -0.
             # orientation = -5.0
             # feet_air_time = 2.
+            # alive = 0.1
             up = 0.6
             height = 0.3
             feet_vel = 2.0
-            feet_pos = 8.0
+            feet_pos = 4.0
             action_rate = 0.5
-            feet_airtime = 16.0
+            feet_airtime = 6.0
             feet_slip = 0.5
             tau = 0.02
             badfoot = 1.0
@@ -119,20 +128,19 @@ class AlienGoCfg(LeggedRobotCfg):
             # energy_sum = 1.
 
     class noise:
-        add_noise = False
+        add_noise = True
         noise_level = 1.0  # scales other values
 
         class noise_scales:
             dof_pos = 0.01
             dof_vel = 1.5
             lin_vel = 0.1
+            imu_rpy = 0.01
             ang_vel = 0.2
-            gravity = 0.05
-            height_measurements = 0.1
 
     class viewer:
         ref_env = 0
-        pos = [5, 5, 3]  # [m]
+        pos = [2, 2, 1]  # [m]
         lookat = [0., 0., 0.]  # [m]
 
     class sim(LeggedRobotCfg.sim):
@@ -148,10 +156,13 @@ class AlienGoCfgPPO(LeggedRobotCfgPPO):
 
     class algorithm(LeggedRobotCfgPPO.algorithm):
         entropy_coef = 0.01
+        learning_rate = 1e-3  # 5.e-4
+        # schedule = 'fixed'  # could be adaptive, fixed
+        # num_learning_epochs = 4
 
     class runner(LeggedRobotCfgPPO.runner):
         num_steps_per_env = 100
-        max_iterations = 300
+        max_iterations = 2000
 
         # log
         run_name = ''

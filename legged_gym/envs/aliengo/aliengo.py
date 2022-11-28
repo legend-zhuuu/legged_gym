@@ -4,19 +4,85 @@ import socket
 import sys
 from time import time
 import random
+
+import gym.wrappers
 import torch
 import numpy as np
 import wandb
 from isaacgym import gymtorch, gymapi, gymutil
 from isaacgym.torch_utils import quat_rotate_inverse
+from torch import nn
+
 from legged_gym.envs import LeggedRobot
 from legged_gym import LEGGED_GYM_ROOT_DIR
-from legged_gym.utils.math import quaternion_to_matrix, quaternion_to_euler
+from legged_gym.utils.math import quaternion_to_matrix, quaternion_to_euler, quat_apply_yaw
 from .aliengo_config import AlienGoCfg
 
 from .laikago_motor import ActuatorNetMotorModel
 from .actuator import Actuator
 from .simple_openloop import ETGOffsetGenerator
+
+
+class RunningMeanStd:
+    """Tracks the mean, variance and count of values."""
+
+    # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Parallel_algorithm
+    def __init__(self, epsilon=1e-4, shape=()):
+        """Tracks the mean, variance and count of values."""
+        self.mean = torch.zeros(*shape, dtype=torch.float32)
+        self.var = torch.zeros(*shape, dtype=torch.float32)
+        self.count = epsilon
+
+    def to(self, device):
+        self.mean = self.mean.to(device)
+        self.var = self.var.to(device)
+        return self
+
+    def __call__(self, x):
+        # with torch.inference_mode():
+        return (x - self.mean) / torch.sqrt(self.var + 1e-8)
+
+    def normalize_(self, x):
+        x -= self.mean
+        x /= torch.sqrt(self.var + 1e-8)
+
+    def state_dict(self):
+        return {'mean': self.mean, 'var': self.var}
+
+    def load_state_dict(self, state_dict):
+        self.mean = state_dict['mean']
+        self.var = state_dict['var']
+
+    def update(self, x):
+        """Updates the mean, var and count from a batch of samples."""
+        batch_mean = torch.mean(x, dim=0)
+        batch_var = torch.var(x, dim=0)
+        batch_count = x.shape[0]
+        self.update_from_moments(batch_mean, batch_var, batch_count)
+
+    def update_from_moments(self, batch_mean, batch_var, batch_count):
+        """Updates from batch mean, variance and count moments."""
+        self.mean, self.var, self.count = update_mean_var_count_from_moments(
+            self.mean, self.var, self.count, batch_mean, batch_var, batch_count
+        )
+
+
+# @torch.jit.script
+def update_mean_var_count_from_moments(
+        mean, var, count, batch_mean, batch_var, batch_count
+):
+    """Updates the mean, var and count using the previous mean, var, count and batch values."""
+    delta = batch_mean - mean
+    tot_count = count + batch_count
+
+    new_mean = mean + delta * batch_count / tot_count
+    m_a = var * count
+    m_b = batch_var * batch_count
+    M2 = m_a + m_b + torch.square(delta) * count * batch_count / tot_count
+    new_var = M2 / tot_count
+    new_count = tot_count
+
+    return new_mean, new_var, new_count
 
 
 class UdpPublisher(object):
@@ -47,20 +113,30 @@ class AlienGo(LeggedRobot):
         if self.cfg.control.use_actuator_network:
             actuator_network_path = self.cfg.control.actuator_net_file.format(LEGGED_GYM_ROOT_DIR=LEGGED_GYM_ROOT_DIR)
             # self.actuator_network = ActuatorNetMotorModel(actuator_network_path)
-            self.actuator_network = Actuator(actuator_network_path, self.num_envs, self.num_actions, device=self.device)
+            self.actuator_network = Actuator(actuator_network_path, self.num_envs, self.num_actions, device=self.device,
+                                             interval=1)
 
+        self.debug_viz = True
         self.ETG = ETGOffsetGenerator(ETG_T=0.6, dt=0.01)
         self.ETG.reset()
         self.prepare_TG_table()
         self._data_publisher = UdpPublisher(9870)
+        self.obs_rms = None
+
+        if self.cfg.env.use_rms:
+            self.obs_rms = RunningMeanStd(shape=(self.cfg.env.num_observations,)).to(self.device)
+            print('obs rms: ON')
 
     def step(self, actions):
+        time0 = time()
         self.etg_time += self.dt
         policy_action_scale = torch.tensor([0.3, 0.4, 0.4], device=self.device).repeat(4)
         etg_actions = self.get_etg_actions(self.etg_time).float() - self.default_dof_pos
+        etg_time = time() - time0
+        # print(f"tg_time: {etg_time*1000} ms")
         actions = actions * self.cfg.control.action_scale * policy_action_scale + etg_actions + self.default_dof_pos  # abs dof pos
         super().step(actions)
-        if self.cfg.control.use_plotjungler:
+        if self.cfg.control.use_plotjuggler:
             state_dict = {
                 'foot_command': self.foot_command.cpu().numpy().tolist(),
                 'base_pos': self.base_pos.cpu().numpy().tolist(),
@@ -123,17 +199,15 @@ class AlienGo(LeggedRobot):
         self.last_base10[1:, ...] = self.last_base10[:9, ...].clone()
         self.last_base10[0, ...] = self.base_pos
 
-        self.body_state = gymtorch.wrap_tensor(self.net_body_state).view(self.num_envs, -1, 13)  # shape: num_envs, num_bodies, (position, rotation, linear velocity, angular velocity).
+        self.body_state = gymtorch.wrap_tensor(self.net_body_state).view(self.num_envs, -1,
+                                                                         13)  # shape: num_envs, num_bodies, (position, rotation, linear velocity, angular velocity).
         self.foot_state = self.body_state[:, self.feet_indices, :]
         self.foot_position_world = self.foot_state[..., :3]
         self.foot_velocity_world = self.foot_state[..., 7:10]
         self.real_contact = self.GetFootContacts()
         self.foot_contact_state = self.GetFootContactState()
-        self.update_target_foot_hold()  # foot_command update
+        self._update_target_foot_hold()  # foot_command update
 
-        # time2 = time()
-        self.foot_command = self.ComputeTargetPosInWorld2FootFrame(self.target_foot_hold)  # compute foot_command_target in foot frame
-        # time3 = time()
         self.GetEnergyConsumptionPerControlStep()
         self.energy_sum += self.energy
         self.GetCostOfTransport()
@@ -167,7 +241,8 @@ class AlienGo(LeggedRobot):
         logic_1 = torch.logical_or(rot_mat[:, -1] < 0.5, torch.mean(footz, dim=-1) > -0.1)
         logic_2 = torch.logical_or(torch.max(footz, dim=-1).values > 0, base_std <= 2e-4)
         self.reset_buf = torch.logical_or(logic_1, logic_2)
-        self.reset_buf |= torch.any(torch.norm(self.contact_forces[:, self.termination_contact_indices, :], dim=-1) > 1., dim=1)
+        self.reset_buf |= torch.any(torch.norm(self.contact_forces[:, self.termination_contact_indices, :], dim=-1) > 1.,
+                                    dim=1)
         self.time_out_buf = self.episode_length_buf > self.max_episode_length  # no terminal reward for time-outs
         self.reset_buf |= self.time_out_buf
         # self.reset_buf = torch.logical_and(logic_1, logic_2)
@@ -176,20 +251,29 @@ class AlienGo(LeggedRobot):
         """
         Computes observations
         """
+        # base_rp = torch.index_select(self.base_rpy, 1, torch.tensor([0, 2], device=self.device))
         self.obs_buf = torch.cat((
             self.foot_command.flatten(start_dim=1),  # 12
-            self.base_lin_vel,  # 3
+            self.base_lin_vel * self.obs_scales.lin_vel,  # 3
             self.real_contact,  # 4
-            self.base_rpy,  # 3
-            self.base_rpy_rate,  # 3
-            self.dof_pos,  # 12
-            self.dof_vel,  # 12
+            self.base_rpy[:, :2],  # 3
+            self.base_rpy_rate * self.obs_scales.ang_vel,  # 3
+            (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos,  # 12
+            self.dof_vel * self.obs_scales.dof_vel,  # 12
             self.feet_air_time,  # 4
             self.actions,  # 12
         ), dim=-1)
+        if self.obs_rms is not None:
+            self.obs_rms.update(self.obs_buf)
+            self.obs_rms.normalize_(self.obs_buf)
+            # self.obs_buf = self.obs_rms(self.obs_buf)
+            # self.obs_buf -= self.obs_rms.mean
+            # self.obs_buf /= torch.sqrt(self.obs_rms.var + 1e-8)
+
         # add perceptive inputs if not blind
         if self.cfg.terrain.measure_heights:
-            heights = torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements
+            heights = torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1,
+                                 1.) * self.obs_scales.height_measurements
             self.obs_buf = torch.cat((self.obs_buf, heights), dim=-1)
         # add noise if needed
         if self.add_noise:
@@ -203,7 +287,7 @@ class AlienGo(LeggedRobot):
         self.contact_ok_num[env_ids] = 0.
         self.last_contacts[env_ids] = torch.ones_like(self.last_contacts[env_ids])
         self.real_contact[env_ids] = torch.ones_like(self.real_contact[env_ids])
-        self.foot_command_base[env_ids] = self.foot_command_rand(env_ids)
+        self.foot_command_base[env_ids] = self._foot_command_rand(env_ids)
         env_ids_mesh, foot_ids = torch.meshgrid(env_ids, torch.arange(4, device=self.device))
         env_ids_mesh, foot_ids = env_ids_mesh.flatten(), foot_ids.flatten()
         if len(env_ids) != 0:
@@ -212,8 +296,11 @@ class AlienGo(LeggedRobot):
         self.energy_sum[env_ids] = 0.
         if self.info_statistics["sta_foot_contact_times"] == 0:
             self.extras["episode"]["sta_foot_contact_error"] = torch.tensor(0., device=self.device)
+            # self.extras["episode"]["sta_foot_contact_times"] = torch.tensor(0., device=self.device)
         else:
-            self.extras["episode"]["sta_foot_contact_error"] = self.info_statistics["sta_foot_contact_error_sum"] / self.info_statistics["sta_foot_contact_times"]
+            self.extras["episode"]["sta_foot_contact_error"] = self.info_statistics["sta_foot_contact_error_sum"] / \
+                                                               self.info_statistics["sta_foot_contact_times"]
+            # self.extras["episode"]["sta_foot_contact_times"] = torch.tensor(self.info_statistics["sta_foot_contact_times"], device=self.device)
         for key in self.info_statistics.keys():
             self.info_statistics[key] = 0
 
@@ -232,15 +319,17 @@ class AlienGo(LeggedRobot):
             self.reward_plot[name] = rew / self.dt
             wandb_rew_buf.update({name: torch.sum(rew) / self.num_envs})
         if self.cfg.rewards.only_positive_rewards:
-            self.rew_buf[:] = torch.clip(self.rew_buf[:], min=0.)
+            self.rew_buf.clamp_(min=0)
+            # self.rew_buf.clamp_(min=0)
+            # self.rew_buf[:] = torch.clip(self.rew_buf[:], min=0.)
         # add termination reward after clipping
         if "termination" in self.reward_scales:
             rew = self._reward_termination() * self.reward_scales["termination"]
             self.rew_buf += rew
             self.episode_sums["termination"] += rew
         wandb_rew_buf.update({"reward": torch.sum(self.rew_buf) / self.num_envs})
-        if self.cfg.control.wandb_log:
-            wandb.log(wandb_rew_buf)
+        # if self.cfg.control.wandb_log:
+        #     wandb.log(wandb_rew_buf)
 
     def _reset_base_states(self, env_ids):
         # self.base_pos[env_ids] = self.root_states[env_ids, :3]
@@ -248,6 +337,14 @@ class AlienGo(LeggedRobot):
         self.base_rpy[env_ids] = quaternion_to_euler(self.base_quat[env_ids])
         self.base_rpy_rate = self.GetTrueBaseRollPitchYawRate()
         self.last_base10[:, env_ids, :] = self.root_states[env_ids, :3]
+
+    def _process_rigid_body_props(self, props, env_id):
+        # randomize base mass
+        if self.cfg.domain_rand.randomize_base_mass:
+            rng = self.cfg.domain_rand.scale_mass_range
+            for i in range(len(props)):
+                props[i].mass *= (1 + np.random.uniform(rng[0], rng[1]))
+        return props
 
     def _compute_torques(self, actions):
         if self.cfg.control.use_actuator_network:
@@ -259,6 +356,22 @@ class AlienGo(LeggedRobot):
             # pd controller
             return super()._compute_torques(actions)
 
+    def _get_noise_scale_vec(self, cfg):
+        noise_vec = torch.zeros_like(self.obs_buf[0])
+        self.add_noise = self.cfg.noise.add_noise
+        noise_scales = self.cfg.noise.noise_scales
+        noise_level = self.cfg.noise.noise_level
+        noise_vec[0:12] = 0.  # command
+        noise_vec[12:15] = noise_scales.lin_vel * noise_level
+        noise_vec[15:19] = 0.  # contact
+        noise_vec[19:21] = noise_scales.imu_rpy * noise_level
+        noise_vec[21:24] = noise_scales.ang_vel * noise_level
+        noise_vec[25:36] = noise_scales.dof_pos * noise_level
+        noise_vec[36:48] = noise_scales.dof_vel * noise_level
+        noise_vec[48:52] = 0.  # airtime
+        noise_vec[52:64] = 0.  # previous actions
+        return noise_vec
+
     def _init_buffers(self):
         super()._init_buffers()
         self.base_pos = self.root_states[:, :3]
@@ -267,16 +380,19 @@ class AlienGo(LeggedRobot):
         self.base_rpy_rate = self.GetTrueBaseRollPitchYawRate()
         self.last_base10 = torch.tile(self.base_pos, (10, 1, 1))  # 10 * num_envs * xyz
 
+        self.noise_scale_vec = self._get_noise_scale_vec(self.cfg)
         self.net_body_state = self.gym.acquire_rigid_body_state_tensor(self.sim)
         self.gym.refresh_rigid_body_state_tensor(self.sim)
-        self.body_state = gymtorch.wrap_tensor(self.net_body_state).view(self.num_envs, -1, 13)  # shape: num_envs, num_bodies, (position, rotation, linear velocity, angular velocity).
+        self.body_state = gymtorch.wrap_tensor(self.net_body_state).view(self.num_envs, -1,
+                                                                         13)  # shape: num_envs, num_bodies, (position, rotation, linear velocity, angular velocity).
         self.foot_state = self.body_state[:, self.feet_indices, :]
         self.foot_position_world = self.foot_state[..., :3]
         self.foot_velocity_world = self.foot_state[..., 7:10]
-        self.foot_command_base = self.foot_command_rand(torch.arange(self.num_envs))  # num_envs * 4 * 3
+        self.foot_command_base = self._foot_command_rand(torch.arange(self.num_envs))  # num_envs * 4 * 3
         env_ids, foot_ids = torch.meshgrid(torch.arange(self.num_envs), torch.arange(4))
         env_ids, foot_ids = env_ids.flatten(), foot_ids.flatten()
-        self.target_foot_hold = self.ComputeTargetPosInBase2WorldFrame(env_ids, foot_ids).reshape(self.num_envs, 4, 3)  # num_envs * 4 * 3
+        self.target_foot_hold = self.ComputeTargetPosInBase2WorldFrame(env_ids, foot_ids).reshape(self.num_envs, 4,
+                                                                                                  3)  # num_envs * 4 * 3
         self.foot_command = self.ComputeTargetPosInWorld2FootFrame(self.target_foot_hold)  # num_envs * 4 * 3
         self.last_foot_velocity = torch.zeros_like(self.foot_velocity_world)
         self.etg_time = torch.zeros(self.num_envs, device=self.device, requires_grad=False)
@@ -292,16 +408,17 @@ class AlienGo(LeggedRobot):
         self.motor_power = torch.zeros(self.num_envs, device=self.device, requires_grad=False)
 
         self.reward_plot = {}
-        self.init_info_statistics()
+        self._init_info_statistics()
 
-    def init_info_statistics(self):
+    def _init_info_statistics(self):
         # all info you want to pass out
         self.info_statistics = {}
         self.info_statistics["sta_foot_contact_error_sum"] = 0
         self.info_statistics["sta_foot_contact_times"] = 0
 
-    def foot_command_rand(self, env_ids):
-        foot_dx = torch.rand(len(env_ids), 4, device=self.device, requires_grad=False) * 0.3
+    def _foot_command_rand(self, env_ids):
+        # foot_dx = torch.rand(len(env_ids), 4, device=self.device, requires_grad=False) * 0.1
+        foot_dx = torch.rand(len(env_ids), 4, device=self.device, requires_grad=False) * 0.2 - 0.1
         # foot_dx = torch.ones(len(env_ids), 4, device=self.device, requires_grad=False) * 0.
         dy = torch.rand(len(env_ids), 2, device=self.device, requires_grad=False) * 0.2 - 0.1
         foot_dy = torch.hstack((dy, dy.flip(dims=[-1])))
@@ -310,14 +427,32 @@ class AlienGo(LeggedRobot):
         foot_command = torch.stack((foot_dx, foot_dy, foot_dz), dim=1).transpose(1, 2) + self.BASE_FOOT
         return foot_command
 
-    def update_target_foot_hold(self):
+    def _update_target_foot_hold(self):
         env_ids, foot_ids = (self.foot_contact_state == 3).nonzero(as_tuple=True)
         foot_world = self.foot_position_world[env_ids, foot_ids]
         foot_target = self.target_foot_hold[env_ids, foot_ids]
         foot_hold_error = torch.sum(torch.norm(foot_world - foot_target, dim=-1))
         self.info_statistics["sta_foot_contact_error_sum"] += foot_hold_error
         self.info_statistics["sta_foot_contact_times"] += len(env_ids)  # all contact foot in num_envs envs
-        self.target_foot_hold[env_ids, foot_ids] = self.ComputeTargetPosInBase2WorldFrame(env_ids, foot_ids)  # update foot targets in world
+        # left contact, set next foothold in world frame
+        if self.cfg.commands.step_cmd == True:
+            self.foot_command_base = self._foot_command_rand(torch.arange(self.num_envs))
+        # update foot targets in world
+        self.target_foot_hold[env_ids, foot_ids] = self.ComputeTargetPosInBase2WorldFrame(env_ids, foot_ids)
+        # compute foot_command_target in foot frame
+        self.foot_command = self.ComputeTargetPosInWorld2FootFrame(self.target_foot_hold)
+
+    def _draw_debug_vis(self):
+        """ Draws visualizations for dubugging (slows down simulation a lot).
+        """
+        self.gym.clear_lines(self.viewer)
+        self.gym.refresh_rigid_body_state_tensor(self.sim)
+        sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=(0, 1, 0))
+        for i in range(self.num_envs):
+            foothold = self.target_foot_hold[i].cpu().numpy()
+            for pos in foothold:
+                sphere_pose = gymapi.Transform(gymapi.Vec3(pos[0], pos[1], pos[2]), r=None)
+                gymutil.draw_lines(sphere_geom, self.gym, self.viewer, self.envs[i], sphere_pose)
 
     def ComputeTargetPosInBase2WorldFrame(self, env_ids, foot_ids):
         """Get the robot's foothold position in the world frame."""
@@ -477,7 +612,7 @@ class AlienGo(LeggedRobot):
         self.foothold[env_ids, foot_ids] = self.target_foot_hold[env_ids, foot_ids]
 
         env_ids, foot_ids = (contact_state == 2).nonzero(as_tuple=True)  # first contact
-        contact_position[env_ids, foot_ids, 2] -= 0.02  # foot radius
+        contact_position[env_ids, foot_ids, 2] -= 0.0265  # foot radius
 
         feet_errors[env_ids, foot_ids] = self.foothold[env_ids, foot_ids] - contact_position[env_ids, foot_ids]
         feet_length_err[env_ids, foot_ids] = torch.norm(feet_errors[env_ids, foot_ids], dim=-1)
@@ -498,7 +633,8 @@ class AlienGo(LeggedRobot):
 
         # Punishing long duration of behavior
         airtime_err = torch.zeros(self.num_envs, 4, device=self.device, requires_grad=False)
-        feet_stand_long = torch.logical_or((self.feet_air_time % traj_period) < 1e-5, (traj_period - self.feet_air_time % traj_period) < 1e-5)
+        feet_stand_long = torch.logical_or((self.feet_air_time % traj_period) < 1e-5,
+                                           (traj_period - self.feet_air_time % traj_period) < 1e-5)
         env_ids, foot_ids = feet_stand_long.nonzero(as_tuple=True)
         rew_airtime[env_ids, foot_ids] += -1.
 
@@ -533,6 +669,9 @@ class AlienGo(LeggedRobot):
         ids = self.reset_buf.nonzero().flatten()
         done[ids] = -1.
         return done
+
+    def _reward_alive(self):
+        return torch.ones(self.num_envs, device=self.device, requires_grad=False)
 
     # reward not used
     # def _reward_velx(self):

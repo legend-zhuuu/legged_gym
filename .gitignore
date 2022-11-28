@@ -53,6 +53,7 @@ Thumbs.db
 # logs
 logs
 runs
+wandb/*
 
 # other
 *.egg-info

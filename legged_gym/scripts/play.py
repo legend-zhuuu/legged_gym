@@ -32,7 +32,6 @@ import time
 from legged_gym import LEGGED_GYM_ROOT_DIR
 import os
 from datetime import datetime
-import wandb
 
 import isaacgym
 from legged_gym.envs import *
@@ -45,11 +44,12 @@ import torch
 def play(args):
     env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
     # override some parameters for testing
-    env_cfg.env.num_envs = min(env_cfg.env.num_envs, 50)
+    env_cfg.env.num_envs = min(env_cfg.env.num_envs, 4)
     env_cfg.terrain.num_rows = 5
     env_cfg.terrain.num_cols = 5
     env_cfg.terrain.curriculum = False
-    env_cfg.noise.add_noise = False
+    env_cfg.commands.step_cmd = True
+    env_cfg.noise.add_noise = True
     env_cfg.domain_rand.randomize_friction = False
     env_cfg.domain_rand.push_robots = False
     env_cfg.control.wandb_log = False
@@ -80,7 +80,9 @@ def play(args):
     re = torch.zeros(env.num_envs, device=env.device)
     for i in range(int(1.0 * env.max_episode_length) + 1):
         actions = policy(obs.detach())
+        time0 = time.time()
         obs, _, rews, dones, infos = env.step(actions.detach())
+        print(f'step time: {(time.time() - time0) * 1000} ms')
         re += rews
         # print("play:", env.commands)
         if RECORD_FRAMES:
@@ -123,7 +125,7 @@ def play(args):
 
 
 if __name__ == '__main__':
-    EXPORT_POLICY = True
+    EXPORT_POLICY = False
     RECORD_FRAMES = False
     MOVE_CAMERA = False
     args = get_args()

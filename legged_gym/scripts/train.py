@@ -53,6 +53,9 @@ def train(args):
 
 
 if __name__ == '__main__':
-    wandb.init(project="legged_gym", name='train: ' + datetime.now().strftime('%b%d_%H-%M-%S'))
-    args = get_args()
+    args = get_args([
+        {"name": "--project", "type": str, "default": 'legged_gym', "help": "wandb project name."},
+    ])
+    log_mode = "online" if args.run_name != 'debug' else "disabled"
+    wandb.init(project=args.project, name=args.run_name, sync_tensorboard=True, mode=log_mode)
     train(args)

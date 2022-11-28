@@ -152,5 +152,7 @@ def get_activation(act_name):
     elif act_name == "sigmoid":
         return nn.Sigmoid()
     else:
-        print("invalid activation function!")
-        return None
+        try:
+            return getattr(nn, act_name)()
+        except AttributeError:
+            raise ValueError("invalid activation function!")
