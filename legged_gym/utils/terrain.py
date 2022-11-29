@@ -59,23 +59,12 @@ class Terrain:
         self.tot_rows = int(cfg.num_rows * self.length_per_env_pixels) + 2 * self.border
 
         self.height_field_raw = np.zeros((self.tot_rows, self.tot_cols), dtype=np.int16)
-        # if cfg.curriculum:
-        #     self.curiculum()
-        # elif cfg.selected:
-        #     self.selected_terrain()
-        # else:
-        #     self.randomized_terrain()
-        # terrain = terrain_utils.SubTerrain("terrain",
-        #                                    width=self.width_per_env_pixels,
-        #                                    length=self.width_per_env_pixels,
-        #                                    vertical_scale=self.cfg.vertical_scale,
-        #                                    horizontal_scale=self.cfg.horizontal_scale)
-        # terrain_utils.random_uniform_terrain(terrain, min_height=0.0, max_height=0.10, step=0.005,
-        #                                      downsampled_scale=2)
-        # self.add_terrain_to_map(terrain, -1, -1)
-        # self.add_terrain_to_map(terrain, -1, 0)
-        # self.add_terrain_to_map(terrain, 0, 0)
-        # self.add_terrain_to_map(terrain, 0, -1)
+        if cfg.curriculum:
+            self.curiculum()
+        elif cfg.selected:
+            self.selected_terrain()
+        else:
+            self.randomized_terrain()
 
         self.heightsamples = self.height_field_raw
         if self.type == "trimesh":
@@ -104,7 +93,7 @@ class Terrain:
                 self.add_terrain_to_map(terrain, i, j)
 
     def selected_terrain(self):
-        terrain_type = self.cfg.terrain_kwargs.pop('type')
+        terrain_type = self.cfg.terrain_kwargs['type']
         for k in range(self.cfg.num_sub_terrains):
             # Env coordinates in the world
             (i, j) = np.unravel_index(k, (self.cfg.num_rows, self.cfg.num_cols))
@@ -115,7 +104,7 @@ class Terrain:
                                                vertical_scale=self.cfg.vertical_scale,
                                                horizontal_scale=self.cfg.horizontal_scale)
 
-            eval(terrain_type)(terrain, **self.cfg.terrain_kwargs.terrain_kwargs)
+            eval(terrain_type)(terrain, **self.cfg.terrain_kwargs["terrain_kwargs"])
             self.add_terrain_to_map(terrain, i, j)
 
     def make_terrain(self, choice, difficulty):
@@ -131,9 +120,6 @@ class Terrain:
         stone_distance = 0.05 if difficulty == 0 else 0.1
         gap_size = 1. * difficulty
         pit_depth = 1. * difficulty
-        terrain_utils.random_uniform_terrain(terrain, min_height=-0.05, max_height=0.05, step=0.005,
-                                             downsampled_scale=0.2)
-        return terrain
         if choice < self.proportions[0]:
             if choice < self.proportions[0] / 2:
                 slope *= -1
@@ -202,3 +188,23 @@ def pit_terrain(terrain, depth, platform_size=1.):
     y1 = terrain.width // 2 - platform_size
     y2 = terrain.width // 2 + platform_size
     terrain.height_field_raw[x1:x2, y1:y2] = -depth
+
+
+def pyramid_stairs_terrain(terrain, step_width, step_height, platform_size=3.):
+    terrain_utils.pyramid_stairs_terrain(terrain, step_width=step_width, step_height=step_height, platform_size=platform_size)
+
+
+def pyramid_sloped_terrain(terrain, slope, platform_size):
+    terrain_utils.pyramid_sloped_terrain(terrain, slope=slope, platform_size=platform_size)
+
+
+def stairs_terrain(terrain, step_width, step_height):
+    terrain_utils.stairs_terrain(terrain, step_width=step_width, step_height=step_height)
+
+
+def discrete_obstacles_terrain(terrain, discrete_obstacles_height, rectangle_min_size, rectangle_max_size, num_rectangles, platform_size=3.):
+    terrain_utils.discrete_obstacles_terrain(terrain, discrete_obstacles_height, rectangle_min_size, rectangle_max_size, num_rectangles, platform_size=platform_size)
+
+
+def stepping_stones_terrain(terrain, stepping_stones_size, stone_distance):
+    terrain_utils.stepping_stones_terrain(terrain, stone_size=stepping_stones_size, stone_distance=stone_distance, max_height=0., platform_size=4.)

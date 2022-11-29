@@ -82,7 +82,7 @@ def play(args):
         actions = policy(obs.detach())
         time0 = time.time()
         obs, _, rews, dones, infos = env.step(actions.detach())
-        print(f'step time: {(time.time() - time0) * 1000} ms')
+        # print(f'step time: {(time.time() - time0) * 1000} ms')
         re += rews
         # print("play:", env.commands)
         if RECORD_FRAMES:

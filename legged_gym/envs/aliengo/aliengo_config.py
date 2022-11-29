@@ -6,17 +6,48 @@ class AlienGoCfg(LeggedRobotCfg):
         num_envs = 4096
         num_actions = 12
         num_observations = 64
+        # num_observations = 251  # for measure heights
         episode_length_s = 10  # episode length in seconds
         use_rms = True
 
     class terrain(LeggedRobotCfg.terrain):
-        mesh_type = 'plane'
-        # mesh_type = 'heightfield'
-        measure_heights = False
+        mesh_type = 'trimesh'  # "heightfield" # none, plane, heightfield or trimesh
+        horizontal_scale = 0.1  # [m]
+        vertical_scale = 0.005  # [m]
+        border_size = 25  # [m]
         curriculum = False
-        # selected = True
-        terrain_kwargs = {'type': 'gap_terrain',
-                          'terrain_kwargs': None}
+        static_friction = 1.0
+        dynamic_friction = 1.0
+        restitution = 0.
+        # rough terrain only:
+        measure_heights = False
+        measured_points_x = [-0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]  # 1mx1.6m rectangle (without center line)
+        measured_points_y = [-0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5]
+        selected = True  # select a unique terrain type and pass all arguments
+        terrain_kwargs = {'type': 'pyramid_stairs_terrain',   # "gap_terrain", "pit_terrain", "pyramid_stairs_terrain", "pyramid_sloped_terrain", "stairs_terrain", "discrete_obstacles_terrain"
+                          'terrain_kwargs': {
+                              "step_width": 0.4,
+                              "step_height": -0.15,
+                              # "slope": 0.4,
+                              # "depth": 0.1,
+                              # "discrete_obstacles_height": 0.1,
+                              # "rectangle_min_size": 0.0,
+                              # "rectangle_max_size": 0.5,
+                              # "num_rectangles": 100,
+                              # "stepping_stones_size": 0.3,
+                              # "stone_distance": 0.4,
+                              "platform_size": 3.,
+                            }
+                          }  # Dict of arguments for selected terrain
+        max_init_terrain_level = 5  # starting curriculum state
+        terrain_length = 10.
+        terrain_width = 10.
+        num_rows = 1  # number of terrain rows (levels)
+        num_cols = 1  # number of terrain cols (types)
+        # terrain types: [smooth slope, rough slope, stairs up, stairs down, discrete]
+        terrain_proportions = [0.1, 0.1, 0.35, 0.25, 0.2]
+        # trimesh only:
+        slope_treshold = 0.75  # slopes above this threshold will be corrected to vertical surfaces
 
     class commands(LeggedRobotCfg.commands):
         heading_command = False
@@ -53,8 +84,8 @@ class AlienGoCfg(LeggedRobotCfg):
     class control(LeggedRobotCfg.control):
         # PD Drive parameters:
         control_type = 'P'
-        stiffness = {'joint': 60 }  # [N*m/rad]
-        damping = {'joint': 1 }  # [N*m*s/rad]
+        stiffness = {'joint': 60}  # [N*m/rad]
+        damping = {'joint': 1}  # [N*m*s/rad]
         # action scale: target angle = actionScale * action + defaultAngle
         action_scale = 1  # control add policy action or not
         # decimation: Number of control action updates @ sim DT per policy DT
@@ -140,7 +171,7 @@ class AlienGoCfg(LeggedRobotCfg):
 
     class viewer:
         ref_env = 0
-        pos = [2, 2, 1]  # [m]
+        pos = [-2, -2, 1]  # [m]
         lookat = [0., 0., 0.]  # [m]
 
     class sim(LeggedRobotCfg.sim):
