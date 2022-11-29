@@ -223,7 +223,7 @@ class OnPolicyRunner:
             'infos': infos,
         }
         if self.env.obs_rms is not None:
-          state['obs_scaling'] = self.env.obs_rms.state_dict()
+          state.update({'obs_scaling': self.env.obs_rms.state_dict()})
         torch.save(state, path)
 
     def load(self, path, load_optimizer=True, map_location='cuda:0'):
@@ -231,7 +231,7 @@ class OnPolicyRunner:
         self.alg.actor_critic.load_state_dict(loaded_dict['model_state_dict'], strict=False)
 
         if self.env.obs_rms is not None:
-            self.env.obs_rms.load_state_dict(loaded_dict['obs_scaling'])
+            self.alg.actor_critic.load_state_dict(loaded_dict['obs_scaling'])
         load_optimizer = False
         if load_optimizer:
             self.alg.optimizer.load_state_dict(loaded_dict['optimizer_state_dict'])

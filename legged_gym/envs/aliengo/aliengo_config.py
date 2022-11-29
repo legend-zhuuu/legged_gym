@@ -8,10 +8,10 @@ class AlienGoCfg(LeggedRobotCfg):
         num_observations = 64
         # num_observations = 251  # for measure heights
         episode_length_s = 10  # episode length in seconds
-        use_rms = True
+        use_rms = False
 
     class terrain(LeggedRobotCfg.terrain):
-        mesh_type = 'trimesh'  # "heightfield" # none, plane, heightfield or trimesh
+        mesh_type = 'plane'  # "heightfield" # none, plane, heightfield or trimesh
         horizontal_scale = 0.1  # [m]
         vertical_scale = 0.005  # [m]
         border_size = 25  # [m]

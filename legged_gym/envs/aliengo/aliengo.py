@@ -256,7 +256,7 @@ class AlienGo(LeggedRobot):
             self.foot_command.flatten(start_dim=1),  # 12
             self.base_lin_vel * self.obs_scales.lin_vel,  # 3
             self.real_contact,  # 4
-            self.base_rpy[:, :2],  # 3
+            self.base_rpy[:, :2],  # 2
             self.base_rpy_rate * self.obs_scales.ang_vel,  # 3
             (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos,  # 12
             self.dof_vel * self.obs_scales.dof_vel,  # 12
@@ -418,7 +418,7 @@ class AlienGo(LeggedRobot):
 
     def _foot_command_rand(self, env_ids):
         # foot_dx = torch.rand(len(env_ids), 4, device=self.device, requires_grad=False) * 0.1
-        foot_dx = torch.rand(len(env_ids), 4, device=self.device, requires_grad=False) * 0.3 - 0.1
+        foot_dx = torch.rand(len(env_ids), 4, device=self.device, requires_grad=False) * 0.2 - 0.1
         # foot_dx = torch.ones(len(env_ids), 4, device=self.device, requires_grad=False) * 0.
         dy = torch.rand(len(env_ids), 2, device=self.device, requires_grad=False) * 0.2 - 0.1
         foot_dy = torch.hstack((dy, dy.flip(dims=[-1])))
