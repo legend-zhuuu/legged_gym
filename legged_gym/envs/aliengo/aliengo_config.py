@@ -5,8 +5,8 @@ class AlienGoCfg(LeggedRobotCfg):
     class env(LeggedRobotCfg.env):
         num_envs = 4096
         num_actions = 12
-        num_observations = 64
-        # num_observations = 251  # for measure heights
+        # num_observations = 64
+        num_observations = 251  # for measure heights
         episode_length_s = 10  # episode length in seconds
         use_rms = False
 
@@ -20,7 +20,7 @@ class AlienGoCfg(LeggedRobotCfg):
         dynamic_friction = 1.0
         restitution = 0.
         # rough terrain only:
-        measure_heights = False
+        measure_heights = True
         measured_points_x = [-0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]  # 1mx1.6m rectangle (without center line)
         measured_points_y = [-0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5]
         selected = True  # select a unique terrain type and pass all arguments
