@@ -130,11 +130,11 @@ class Logger:
         plt.show()
 
     def print_rewards(self):
-        print("Average rewards per 1000 steps:")
+        print("Average rewards:")
         for key, values in self.rew_log.items():
             mean = np.sum(np.array(values)) / self.num_episodes
             print(f" - {key}: {mean}")
-        print("Average statistics info per 1000 steps:")
+        print("Average statistics:")
         for key, values in self.sta_log.items():
             mean = np.sum(np.array(values)) / self.num_episodes
             print(f" - {key}: {mean}")

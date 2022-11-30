@@ -5,10 +5,10 @@ class AlienGoCfg(LeggedRobotCfg):
     class env(LeggedRobotCfg.env):
         num_envs = 4096
         num_actions = 12
-        # num_observations = 64
-        num_observations = 251  # for measure heights
+        num_observations = 36
+        # num_observations = 251  # for measure heights
         episode_length_s = 10  # episode length in seconds
-        use_rms = False
+        use_rms = True
 
     class terrain(LeggedRobotCfg.terrain):
         mesh_type = 'plane'  # "heightfield" # none, plane, heightfield or trimesh
@@ -20,11 +20,11 @@ class AlienGoCfg(LeggedRobotCfg):
         dynamic_friction = 1.0
         restitution = 0.
         # rough terrain only:
-        measure_heights = True
+        measure_heights = False
         measured_points_x = [-0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]  # 1mx1.6m rectangle (without center line)
         measured_points_y = [-0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5]
         selected = True  # select a unique terrain type and pass all arguments
-        terrain_kwargs = {'type': 'pyramid_stairs_terrain',   # "gap_terrain", "pit_terrain", "pyramid_stairs_terrain", "pyramid_sloped_terrain", "stairs_terrain", "discrete_obstacles_terrain"
+        terrain_kwargs = {'type': 'pyramid_stairs_terrain',  # "gap_terrain", "pit_terrain", "pyramid_stairs_terrain", "pyramid_sloped_terrain", "stairs_terrain", "discrete_obstacles_terrain"
                           'terrain_kwargs': {
                               "step_width": 0.4,
                               "step_height": -0.15,
@@ -37,7 +37,7 @@ class AlienGoCfg(LeggedRobotCfg):
                               # "stepping_stones_size": 0.3,
                               # "stone_distance": 0.4,
                               "platform_size": 3.,
-                            }
+                          }
                           }  # Dict of arguments for selected terrain
         max_init_terrain_level = 5  # starting curriculum state
         terrain_length = 10.
@@ -55,13 +55,15 @@ class AlienGoCfg(LeggedRobotCfg):
         step_cmd = False
 
         class ranges(LeggedRobotCfg.commands.ranges):
-            ang_vel_yaw = [-1., 1.]
+            lin_vel_x = [-3.0, 3.0]  # min max [m/s]
+            lin_vel_y = [-2.0, 2.0]  # min max [m/s]
+            ang_vel_yaw = [-3, 3]  # min max [rad/s]
 
     class init_state(LeggedRobotCfg.init_state):
         pos = [0.0, 0.0, 0.41]  # x,y,z [m]
         start_hip = 0.
-        start_thigh = 0.69
-        start_calf = -1.42
+        start_thigh = 0.6425
+        start_calf = -1.287
         default_joint_angles = {  # = target angles [rad] when action = 0.0
             '1FR_hip_joint': start_hip,  # [rad]
             '1FR_thigh_joint': start_thigh,  # [rad]  0.69
@@ -90,7 +92,7 @@ class AlienGoCfg(LeggedRobotCfg):
         action_scale = 1  # control add policy action or not
         # decimation: Number of control action updates @ sim DT per policy DT
         decimation = 5
-        use_actuator_network = True
+        use_actuator_network = False
         # actuator_net_file = "{LEGGED_GYM_ROOT_DIR}/resources/ETG/ac2f10ms.onnx"
         actuator_net_file = "{LEGGED_GYM_ROOT_DIR}/resources/ETG/actuator_net.pt"
         use_plotjuggler = False
@@ -136,21 +138,34 @@ class AlienGoCfg(LeggedRobotCfg):
             # orientation = -5.0
             # feet_air_time = 2.
             # alive = 0.1
-            up = 0.6
-            height = 0.3
-            feet_vel = 2.0
-            feet_pos = 4.0
-            action_rate = 0.5
-            feet_airtime = 6.0
-            feet_slip = 0.5
-            tau = 0.02
-            badfoot = 1.0
-            footcontact = 1.0
-            done = 1
-
-            joint_motion = 0.0
-            joint_deviation = 0.0
-            body_motion = 0.0
+            # up = 0.6
+            # height = 0.3
+            # feet_vel = 2.0
+            # feet_pos = 4.0
+            # action_rate = 0.5
+            # feet_airtime = 6.0
+            # feet_slip = 0.5
+            # tau = 0.02
+            # badfoot = 1.0
+            # footcontact = 1.0
+            # done = 1
+            linear_tracking = 0.6
+            angular_tracking = 0.25
+            torque = -1.2e-4
+            body_posture = -0.2
+            joint_vel = -1.0e-4
+            joint_acc = -1.5e-8
+            collision = -0.2
+            # air_time = 0.4
+            # air_time_consistency= -0.05
+            # rhythm = -0.2
+            angular_motion = -0.02
+            linear_motion = -0.2
+            alive = -0.
+            slip = -0.02
+            # joint_motion = 0.0
+            # joint_deviation = 0.0
+            # body_motion = 0.0
 
             # velx = 1.
             # contact_nums = 1.
@@ -159,7 +174,7 @@ class AlienGoCfg(LeggedRobotCfg):
             # energy_sum = 1.
 
     class noise:
-        add_noise = True
+        add_noise = False
         noise_level = 1.0  # scales other values
 
         class noise_scales:
@@ -176,7 +191,7 @@ class AlienGoCfg(LeggedRobotCfg):
 
     class sim(LeggedRobotCfg.sim):
         up_axis = 1  # 0 is y, 1 is z
-        dt = 0.002  # dt = 0.002 * 5 = 0.01
+        dt = 0.001  # dt = 0.002 * 5 = 0.01
 
 
 class AlienGoCfgPPO(LeggedRobotCfgPPO):
@@ -187,12 +202,15 @@ class AlienGoCfgPPO(LeggedRobotCfgPPO):
 
     class algorithm(LeggedRobotCfgPPO.algorithm):
         entropy_coef = 0.01
-        learning_rate = 1e-3  # 5.e-4
-        # schedule = 'fixed'  # could be adaptive, fixed
-        # num_learning_epochs = 4
+        learning_rate = 2e-4  # 5.e-4
+        schedule = 'fixed'  # could be adaptive, fixed
+        num_learning_epochs = 4
+        max_grad_norm = 0.5
+        num_mini_batches = 4
+        gamma = 0.992
 
     class runner(LeggedRobotCfgPPO.runner):
-        num_steps_per_env = 100
+        num_steps_per_env = 24
         max_iterations = 2000
 
         # log

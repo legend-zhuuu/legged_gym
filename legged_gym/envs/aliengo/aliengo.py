@@ -130,11 +130,11 @@ class AlienGo(LeggedRobot):
     def step(self, actions):
         time0 = time()
         self.etg_time += self.dt
-        policy_action_scale = torch.tensor([0.3, 0.4, 0.4], device=self.device).repeat(4)
+        policy_action_scale = torch.tensor([0.4, 0.4, 0.4], device=self.device).repeat(4)
         etg_actions = self.get_etg_actions(self.etg_time).float() - self.default_dof_pos
         etg_time = time() - time0
         # print(f"tg_time: {etg_time*1000} ms")
-        actions = actions * self.cfg.control.action_scale * policy_action_scale + etg_actions + self.default_dof_pos  # abs dof pos
+        actions = actions * self.cfg.control.action_scale * policy_action_scale  # abs dof pos
         super().step(actions)
         if self.cfg.control.use_plotjuggler:
             state_dict = {
@@ -253,23 +253,14 @@ class AlienGo(LeggedRobot):
         """
         # base_rp = torch.index_select(self.base_rpy, 1, torch.tensor([0, 2], device=self.device))
         self.obs_buf = torch.cat((
-            self.foot_command.flatten(start_dim=1),  # 12
-            self.base_lin_vel * self.obs_scales.lin_vel,  # 3
-            self.real_contact,  # 4
+            self.commands[:, :3],  # 3
             self.base_rpy[:, :2],  # 2
-            self.base_rpy_rate * self.obs_scales.ang_vel,  # 3
-            (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos,  # 12
-            self.dof_vel * self.obs_scales.dof_vel,  # 12
-            self.feet_air_time,  # 4
-            self.actions,  # 12
+            self.dof_pos,  # 12
+            self.base_lin_vel,  # 3
+            self.base_ang_vel,  # 3
+            self.dof_vel,  # 12
+            self.commands.norm(dim=-1, keepdim=True) < 0.01,  # 1
         ), dim=-1)
-        if self.obs_rms is not None:
-            self.obs_rms.update(self.obs_buf)
-            self.obs_rms.normalize_(self.obs_buf)
-            # self.obs_buf = self.obs_rms(self.obs_buf)
-            # self.obs_buf -= self.obs_rms.mean
-            # self.obs_buf /= torch.sqrt(self.obs_rms.var + 1e-8)
-
         # add perceptive inputs if not blind
         if self.cfg.terrain.measure_heights:
             heights = torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1,
@@ -278,6 +269,9 @@ class AlienGo(LeggedRobot):
         # add noise if needed
         if self.add_noise:
             self.obs_buf += (2 * torch.rand_like(self.obs_buf) - 1) * self.noise_scale_vec
+        if self.obs_rms is not None:
+            self.obs_rms.update(self.obs_buf)
+            self.obs_rms.normalize_(self.obs_buf)
 
     def reset_idx(self, env_ids):
         super().reset_idx(env_ids)
@@ -294,15 +288,15 @@ class AlienGo(LeggedRobot):
             self.target_foot_hold[env_ids_mesh, foot_ids] = self.ComputeTargetPosInBase2WorldFrame(env_ids_mesh, foot_ids)
         self.foot_command = self.ComputeTargetPosInWorld2FootFrame(self.target_foot_hold)
         self.energy_sum[env_ids] = 0.
-        if self.info_statistics["sta_foot_contact_times"] == 0:
-            self.extras["episode"]["sta_foot_contact_error"] = torch.tensor(0., device=self.device)
-            # self.extras["episode"]["sta_foot_contact_times"] = torch.tensor(0., device=self.device)
-        else:
-            self.extras["episode"]["sta_foot_contact_error"] = self.info_statistics["sta_foot_contact_error_sum"] / \
-                                                               self.info_statistics["sta_foot_contact_times"]
-            # self.extras["episode"]["sta_foot_contact_times"] = torch.tensor(self.info_statistics["sta_foot_contact_times"], device=self.device)
-        for key in self.info_statistics.keys():
-            self.info_statistics[key] = 0
+        # if self.info_statistics["sta_foot_contact_times"] == 0:
+        #     self.extras["episode"]["sta_foot_contact_error"] = torch.tensor(0., device=self.device)
+        #     # self.extras["episode"]["sta_foot_contact_times"] = torch.tensor(0., device=self.device)
+        # else:
+        #     self.extras["episode"]["sta_foot_contact_error"] = self.info_statistics["sta_foot_contact_error_sum"] / \
+        #                                                        self.info_statistics["sta_foot_contact_times"]
+        #     # self.extras["episode"]["sta_foot_contact_times"] = torch.tensor(self.info_statistics["sta_foot_contact_times"], device=self.device)
+        # for key in self.info_statistics.keys():
+        #     self.info_statistics[key] = 0
 
     def compute_reward(self):
         """ Compute rewards
@@ -673,33 +667,36 @@ class AlienGo(LeggedRobot):
     def _reward_alive(self):
         return torch.ones(self.num_envs, device=self.device, requires_grad=False)
 
-    # reward not used
-    # def _reward_velx(self):
-    #     return self.base_lin_vel[:, 0]
-    #
-    # def _reward_contact_nums(self):
-    #     feet_length_error = torch.zeros(self.num_envs, device=self.device, requires_grad=False)
-    #     for i in range(self.num_envs):
-    #         feet_length_error[i] = len(self.feet_length_error[i])
-    #     return feet_length_error
-    #
-    # def _reward_contact_errs(self):
-    #     contact_errs = torch.zeros(self.num_envs, device=self.device, requires_grad=False)
-    #     for i in range(self.num_envs):
-    #         if len(self.feet_length_error[i]) != 0:
-    #             contact_errs[i] = np.mean(self.feet_length_error[i])
-    #         else:
-    #             contact_errs[i] = 1.
-    #     return contact_errs
-    #
-    # def _reward_contact_rate(self):
-    #     contact_rate = torch.zeros(self.num_envs, device=self.device, requires_grad=False)
-    #     for i in range(self.num_envs):
-    #         if len(self.feet_length_error[i]) != 0:
-    #             contact_rate[i] = self.contact_ok_num[i] / len(self.feet_length_error[i])
-    #         else:
-    #             contact_rate[i] = 0.
-    #     return contact_rate
-    #
-    # def _reward_energy_sum(self):
-    #     return self.energy_sum
+    def _reward_linear_tracking(self):
+        return 1 - (self.commands[:, :2] - self.base_lin_vel[:, :2]).norm(dim=-1) * 0.95 / 1.7308183826022854 / 1.5  # kSqrtLog005
+
+    def _reward_angular_tracking(self):
+        return torch.exp((self.commands[:, 2] - self.base_rpy_rate[:, 2]) ** 2 * -2.995732273553991 / 3)  # kLog005
+
+    def _reward_linear_motion(self):
+        return self.base_lin_vel[:, 2].abs()
+
+    def _reward_angular_motion(self):
+        return 1 - torch.exp((self.base_rpy_rate[:, :2] ** 2).sum(dim=-1) * -0.2)
+
+    def _reward_body_posture(self):
+        return self.base_rpy[:, 0].abs() + self.base_rpy[:, 1].abs()
+
+    def _reward_torque(self):
+        return (self.torques ** 2).sum(dim=-1)
+
+    def _reward_power(self):
+        return self.motor_power
+
+    def _reward_joint_vel(self):
+        return (self.dof_vel ** 2).sum(dim=-1)
+
+    def _reward_joint_acc(self):
+        dof_acc = (self.last_dof_vel - self.dof_vel) / self.dt
+        return (dof_acc ** 2).sum(dim=-1)
+
+    def _reward_slip(self):
+        contact = self.real_contact
+        foot_vel = torch.norm(self.foot_velocity_world, dim=-1)
+        foot_vel = ((foot_vel * contact) ** 2).sum(dim=-1)
+        return foot_vel
