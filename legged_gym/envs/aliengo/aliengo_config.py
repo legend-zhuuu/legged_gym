@@ -9,6 +9,7 @@ class AlienGoCfg(LeggedRobotCfg):
         # num_observations = 251  # for measure heights
         episode_length_s = 10  # episode length in seconds
         use_rms = True
+        debug = False
 
     class terrain(LeggedRobotCfg.terrain):
         mesh_type = 'plane'  # "heightfield" # none, plane, heightfield or trimesh
@@ -24,19 +25,10 @@ class AlienGoCfg(LeggedRobotCfg):
         measured_points_x = [-0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]  # 1mx1.6m rectangle (without center line)
         measured_points_y = [-0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5]
         selected = True  # select a unique terrain type and pass all arguments
-        terrain_kwargs = {'type': 'pyramid_stairs_terrain',  # "gap_terrain", "pit_terrain", "pyramid_stairs_terrain", "pyramid_sloped_terrain", "stairs_terrain", "discrete_obstacles_terrain"
+        terrain_kwargs = {'type': 'perlin_terrain',  # "gap_terrain", "pit_terrain", "pyramid_stairs_terrain", "pyramid_sloped_terrain", "stairs_terrain", "discrete_obstacles_terrain"
                           'terrain_kwargs': {
-                              "step_width": 0.4,
-                              "step_height": -0.15,
-                              # "slope": 0.4,
-                              # "depth": 0.1,
-                              # "discrete_obstacles_height": 0.1,
-                              # "rectangle_min_size": 0.0,
-                              # "rectangle_max_size": 0.5,
-                              # "num_rectangles": 100,
-                              # "stepping_stones_size": 0.3,
-                              # "stone_distance": 0.4,
-                              "platform_size": 3.,
+                              "octaves": 1,
+                              "tile": (0, 3),
                           }
                           }  # Dict of arguments for selected terrain
         max_init_terrain_level = 5  # starting curriculum state
@@ -104,7 +96,7 @@ class AlienGoCfg(LeggedRobotCfg):
         foot_name = "foot"
         penalize_contacts_on = ["thigh", "calf"]
         terminate_after_contacts_on = ["base", "thigh"]
-        self_collisions = 1  # 1 to disable, 0 to enable...bitwise filter
+        self_collisions = 0  # 1 to disable, 0 to enable...bitwise filter
         disable_gravity = False
         collapse_fixed_joints = True  # merge bodies connected by fixed joints. Specific fixed joints can be kept by adding " <... dont_collapse="true">
         fix_base_link = False  # fixe the base of the robot

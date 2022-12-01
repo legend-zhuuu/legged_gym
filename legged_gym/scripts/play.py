@@ -59,10 +59,10 @@ def play(args):
     obs = env.get_observations()
     # load policy
     train_cfg.runner.resume = True
-    # ppo_runner, train_cfg = task_registry.make_alg_runner(env=env, name=args.task, args=args, train_cfg=train_cfg)
-    # policy = ppo_runner.get_inference_policy(device=env.device)
-    policy = torch.jit.load('/home/zdy/raisim_gym/aliengo-AirTime(-0.4)@40000-1130.pt')
-    # policy = policy.to('cuda')
+    ppo_runner, train_cfg = task_registry.make_alg_runner(env=env, name=args.task, args=args, train_cfg=train_cfg)
+    policy = ppo_runner.get_inference_policy(device=env.device)
+    # policy = torch.jit.load('/home/zdy/raisim_gym/aliengo-AirTime(-0.4)@40000-1130.pt')
+    # policy = policy.to(self.device)
     # export policy as a jit module (used to run it from C++)
     if EXPORT_POLICY:
         path = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', train_cfg.runner.experiment_name, 'exported', 'policies')
@@ -81,7 +81,7 @@ def play(args):
     re = torch.zeros(env.num_envs, device=env.device)
     torch.inference_mode().__enter__()
     for i in range(int(2.0 * env.max_episode_length) + 1):
-        actions = policy(obs.contiguous().cpu()).cuda()
+        actions = policy(obs.contiguous())
         time0 = time.time()
         obs, _, rews, dones, infos = env.step(actions)
         # print(f'step time: {(time.time() - time0) * 1000} ms')
@@ -129,5 +129,7 @@ if __name__ == '__main__':
     EXPORT_POLICY = False
     RECORD_FRAMES = False
     MOVE_CAMERA = False
-    args = get_args()
+    args = get_args([
+        {"name": "--debug", "type": str, "default": True, "help": "wandb project name."},
+    ])
     play(args)

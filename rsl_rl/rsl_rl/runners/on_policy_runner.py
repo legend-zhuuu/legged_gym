@@ -231,7 +231,10 @@ class OnPolicyRunner:
         self.alg.actor_critic.load_state_dict(loaded_dict['model_state_dict'], strict=False)
 
         if self.env.obs_rms is not None:
-            self.alg.actor_critic.load_state_dict(loaded_dict['obs_scaling'])
+            self.env.obs_rms.load_state_dict(loaded_dict['obs_scaling'])
+            # self.env.obs_rms.var[35] = 1
+            # print(self.env.obs_rms.mean)
+            # print(self.env.obs_rms.var)
         load_optimizer = False
         if load_optimizer:
             self.alg.optimizer.load_state_dict(loaded_dict['optimizer_state_dict'])

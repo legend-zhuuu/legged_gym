@@ -110,12 +110,12 @@
         <mesh filename="../meshes/hip.dae" scale="1 1 1"/>
       </geometry>
     </visual>
-    <collision>
-      <origin rpy="1.57079632679 0 0" xyz="0 -0.083 0"/>
-      <geometry>
-        <cylinder length="0.0418" radius="0.046"/>
-      </geometry>
-    </collision>
+<!--    <collision>-->
+<!--      <origin rpy="1.57079632679 0 0" xyz="0 -0.083 0"/>-->
+<!--      <geometry>-->
+<!--        <cylinder length="0.0418" radius="0.046"/>-->
+<!--      </geometry>-->
+<!--    </collision>-->
     <inertial>
       <origin rpy="0 0 0" xyz="-0.022191 -0.015144 -1.5e-05"/>
       <mass value="1.993"/>
@@ -216,12 +216,12 @@
         <mesh filename="../meshes/hip.dae" scale="1 1 1"/>
       </geometry>
     </visual>
-    <collision>
-      <origin rpy="1.57079632679 0 0" xyz="0 0.083 0"/>
-      <geometry>
-        <cylinder length="0.0418" radius="0.046"/>
-      </geometry>
-    </collision>
+<!--    <collision>-->
+<!--      <origin rpy="1.57079632679 0 0" xyz="0 0.083 0"/>-->
+<!--      <geometry>-->
+<!--        <cylinder length="0.0418" radius="0.046"/>-->
+<!--      </geometry>-->
+<!--    </collision>-->
     <inertial>
       <origin rpy="0 0 0" xyz="-0.022191 0.015144 -1.5e-05"/>
       <mass value="1.993"/>
@@ -322,12 +322,12 @@
         <mesh filename="../meshes/hip.dae" scale="1 1 1"/>
       </geometry>
     </visual>
-    <collision>
-      <origin rpy="1.57079632679 0 0" xyz="0 -0.083 0"/>
-      <geometry>
-        <cylinder length="0.0418" radius="0.046"/>
-      </geometry>
-    </collision>
+<!--    <collision>-->
+<!--      <origin rpy="1.57079632679 0 0" xyz="0 -0.083 0"/>-->
+<!--      <geometry>-->
+<!--        <cylinder length="0.0418" radius="0.046"/>-->
+<!--      </geometry>-->
+<!--    </collision>-->
     <inertial>
       <origin rpy="0 0 0" xyz="0.022191 -0.015144 -1.5e-05"/>
       <mass value="1.993"/>
@@ -428,12 +428,12 @@
         <mesh filename="../meshes/hip.dae" scale="1 1 1"/>
       </geometry>
     </visual>
-    <collision>
-      <origin rpy="1.57079632679 0 0" xyz="0 0.083 0"/>
-      <geometry>
-        <cylinder length="0.0418" radius="0.046"/>
-      </geometry>
-    </collision>
+<!--    <collision>-->
+<!--      <origin rpy="1.57079632679 0 0" xyz="0 0.083 0"/>-->
+<!--      <geometry>-->
+<!--        <cylinder length="0.0418" radius="0.046"/>-->
+<!--      </geometry>-->
+<!--    </collision>-->
     <inertial>
       <origin rpy="0 0 0" xyz="0.022191 0.015144 -1.5e-05"/>
       <mass value="1.993"/>

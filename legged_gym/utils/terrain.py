@@ -31,9 +31,11 @@
 import numpy as np
 from numpy.random import choice
 from scipy import interpolate
+from time import time
 
 from isaacgym import terrain_utils
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg
+from .perlin import make_perlin_terrain
 
 
 class Terrain:
@@ -94,6 +96,7 @@ class Terrain:
 
     def selected_terrain(self):
         terrain_type = self.cfg.terrain_kwargs['type']
+        time1 = time()
         for k in range(self.cfg.num_sub_terrains):
             # Env coordinates in the world
             (i, j) = np.unravel_index(k, (self.cfg.num_rows, self.cfg.num_cols))
@@ -106,6 +109,7 @@ class Terrain:
 
             eval(terrain_type)(terrain, **self.cfg.terrain_kwargs["terrain_kwargs"])
             self.add_terrain_to_map(terrain, i, j)
+        print("terrain generate time:", time() - time1)
 
     def make_terrain(self, choice, difficulty):
         terrain = terrain_utils.SubTerrain("terrain",
@@ -208,3 +212,31 @@ def discrete_obstacles_terrain(terrain, discrete_obstacles_height, rectangle_min
 
 def stepping_stones_terrain(terrain, stepping_stones_size, stone_distance):
     terrain_utils.stepping_stones_terrain(terrain, stone_size=stepping_stones_size, stone_distance=stone_distance, max_height=0., platform_size=4.)
+
+
+def perlin_terrain(terrain, octaves=1, tile=(0, 3), step=1):
+    frame_size = (int(terrain.width * 1), int(terrain.length * 1))
+    height = make_perlin_terrain(octaves, tile, frameSize=frame_size)
+    min_height = np.min(height)
+    max_height = np.max(height)
+    print(min_height, max_height)
+    # switch parameters to discrete units
+    min_height = int(min_height / terrain.vertical_scale)
+    max_height = int(max_height / terrain.vertical_scale)
+    step = int(step / terrain.vertical_scale)
+
+    heights_range = np.arange(min_height, max_height + step, step)
+
+    x = np.linspace(0, terrain.width * terrain.horizontal_scale, height.shape[0])
+    y = np.linspace(0, terrain.length * terrain.horizontal_scale, height.shape[1])
+
+    f = interpolate.interp2d(y, x, height, kind='linear')
+
+    x_upsampled = np.linspace(0, terrain.width * terrain.horizontal_scale, terrain.width)
+    y_upsampled = np.linspace(0, terrain.length * terrain.horizontal_scale, terrain.length)
+    z_upsampled = np.rint(f(y_upsampled, x_upsampled))
+
+
+    terrain.height_field_raw += z_upsampled.astype(np.int16)
+    return terrain
+

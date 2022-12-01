@@ -135,6 +135,7 @@ class AlienGo(LeggedRobot):
         etg_time = time() - time0
         # print(f"tg_time: {etg_time*1000} ms")
         actions = actions * self.cfg.control.action_scale * policy_action_scale  # abs dof pos
+        # print(actions)
         super().step(actions)
         if self.cfg.control.use_plotjuggler:
             state_dict = {
@@ -270,7 +271,8 @@ class AlienGo(LeggedRobot):
         if self.add_noise:
             self.obs_buf += (2 * torch.rand_like(self.obs_buf) - 1) * self.noise_scale_vec
         if self.obs_rms is not None:
-            self.obs_rms.update(self.obs_buf)
+            if not self.cfg.env.debug:
+                self.obs_rms.update(self.obs_buf)
             self.obs_rms.normalize_(self.obs_buf)
 
     def reset_idx(self, env_ids):
