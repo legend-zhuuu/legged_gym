@@ -52,7 +52,7 @@ class AlienGoCfg(LeggedRobotCfg):
             ang_vel_yaw = [-3, 3]  # min max [rad/s]
 
     class init_state(LeggedRobotCfg.init_state):
-        pos = [0.0, 0.0, 0.41]  # x,y,z [m]
+        pos = [0.0, 0.0, 0.43]  # x,y,z [m]
         start_hip = 0.
         start_thigh = 0.6425
         start_calf = -1.287
@@ -184,6 +184,9 @@ class AlienGoCfg(LeggedRobotCfg):
     class sim(LeggedRobotCfg.sim):
         up_axis = 1  # 0 is y, 1 is z
         dt = 0.001  # dt = 0.002 * 5 = 0.01
+
+        class physx:
+            max_gpu_contact_pairs = 2 ** 23  # 2**24 -> needed for 8000 envs and more
 
 
 class AlienGoCfgPPO(LeggedRobotCfgPPO):

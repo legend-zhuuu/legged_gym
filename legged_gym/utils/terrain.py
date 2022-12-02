@@ -236,7 +236,6 @@ def perlin_terrain(terrain, octaves=1, tile=(0, 3), step=1):
     y_upsampled = np.linspace(0, terrain.length * terrain.horizontal_scale, terrain.length)
     z_upsampled = np.rint(f(y_upsampled, x_upsampled))
 
-
     terrain.height_field_raw += z_upsampled.astype(np.int16)
     return terrain
 

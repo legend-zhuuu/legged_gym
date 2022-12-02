@@ -131,9 +131,12 @@ class Logger:
 
     def print_rewards(self):
         print("Average rewards:")
+        total = 0
         for key, values in self.rew_log.items():
             mean = np.sum(np.array(values)) / self.num_episodes
             print(f" - {key}: {mean}")
+            total += mean
+        print(f" - Mean reward: {total}")
         print("Average statistics:")
         for key, values in self.sta_log.items():
             mean = np.sum(np.array(values)) / self.num_episodes

@@ -54,9 +54,9 @@ def train(args):
 
 if __name__ == '__main__':
     args = get_args([
-        {"name": "--project", "type": str, "default": 'legged_gym', "help": "wandb project name."},
+        {"name": "--project", "type": str, "default": 'aliengo_vel', "help": "wandb project name."},
         {"name": "--debug", "type": str, "default": False, "help": "wandb project name."},
     ])
     log_mode = "online" if args.run_name != 'debug' else "disabled"
-    wandb.init(project=args.project, name=args.run_name, sync_tensorboard=True, mode=log_mode)
+    wandb.init(project=args.project, entity="april-quadruped", name=args.run_name, sync_tensorboard=True, mode=log_mode)
     train(args)
