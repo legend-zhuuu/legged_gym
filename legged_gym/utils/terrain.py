@@ -109,7 +109,7 @@ class Terrain:
 
             eval(terrain_type)(terrain, **self.cfg.terrain_kwargs["terrain_kwargs"])
             self.add_terrain_to_map(terrain, i, j)
-        print("terrain generate time:", time() - time1)
+        print(f"terrain generate time:{time() - time1} s")
 
     def make_terrain(self, choice, difficulty):
         terrain = terrain_utils.SubTerrain("terrain",
@@ -216,10 +216,9 @@ def stepping_stones_terrain(terrain, stepping_stones_size, stone_distance):
 
 def perlin_terrain(terrain, octaves=1, tile=(0, 3), step=1):
     frame_size = (int(terrain.width * 1), int(terrain.length * 1))
-    height = make_perlin_terrain(octaves, tile, frameSize=frame_size)
+    height = make_perlin_terrain(octaves, tile, frameSize=frame_size) / terrain.vertical_scale
     min_height = np.min(height)
     max_height = np.max(height)
-    print(min_height, max_height)
     # switch parameters to discrete units
     min_height = int(min_height / terrain.vertical_scale)
     max_height = int(max_height / terrain.vertical_scale)

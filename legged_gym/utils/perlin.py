@@ -169,7 +169,7 @@ def make_perlin_terrain(octaves, tile, frameSize):
 
 if __name__ == "__main__":
     frameSize = (30, 100)
-    Z = make_perlin_terrain(octaves=1, tile=(0, 3), frameSize=frameSize)
+    Z = make_perlin_terrain(octaves=2, tile=(0, 3), frameSize=frameSize)
     fig = plt.figure()  # 定义新的三维坐标轴
     ax3 = plt.axes(projection='3d')
     # 定义三维数据
