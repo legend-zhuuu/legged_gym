@@ -12,11 +12,11 @@ class AlienGoCfg(LeggedRobotCfg):
         debug = False
 
     class terrain(LeggedRobotCfg.terrain):
-        mesh_type = 'plane'  # "heightfield" # none, plane, heightfield or trimesh
-        horizontal_scale = 0.1  # [m]
+        mesh_type = 'trimesh'  # "heightfield" # none, plane, heightfield or trimesh
+        horizontal_scale = 0.05 # [m]
         vertical_scale = 0.005  # [m]
         border_size = 25  # [m]
-        curriculum = False
+        curriculum = True
         static_friction = 1.0
         dynamic_friction = 1.0
         restitution = 0.
@@ -25,19 +25,19 @@ class AlienGoCfg(LeggedRobotCfg):
         measured_points_x = [-0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]  # 1mx1.6m rectangle (without center line)
         measured_points_y = [-0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5]
         selected = True  # select a unique terrain type and pass all arguments
-        terrain_kwargs = {'type': 'perlin_terrain',  # "gap_terrain", "perlin_terrain", "pyramid_stairs_terrain", "pyramid_sloped_terrain", "stairs_terrain", "discrete_obstacles_terrain"
+        terrain_kwargs = {'type': 'stairs_terrain',  # "gap_terrain", "perlin_terrain", "stairs_terrain"
                           'terrain_kwargs': {
-                              "octaves": 2,
-                              "tile": (0, 3),
-                              # "step_width": 0.4,
-                              # "step_height": 0.4,
-                            }
+                              # "octaves": 1,
+                              # "tile": (0, 3),
+                              "step_width": 0.4,
+                              "step_height": 0.04,
+                          }
                           }  # Dict of arguments for selected terrain
-        max_init_terrain_level = 5  # starting curriculum state
+        max_init_terrain_level = 3  # starting curriculum state
         terrain_length = 10.
         terrain_width = 10.
-        num_rows = 1  # number of terrain rows (levels)
-        num_cols = 1  # number of terrain cols (types)
+        num_rows = 5  # number of terrain rows (levels)
+        num_cols = 5  # number of terrain cols (types)
         # terrain types: [smooth slope, rough slope, stairs up, stairs down, discrete]
         terrain_proportions = [0.1, 0.1, 0.35, 0.25, 0.2]
         # trimesh only:
@@ -49,9 +49,9 @@ class AlienGoCfg(LeggedRobotCfg):
         step_cmd = False
 
         class ranges(LeggedRobotCfg.commands.ranges):
-            lin_vel_x = [-3.0, 3.0]  # min max [m/s]
-            lin_vel_y = [-2.0, 2.0]  # min max [m/s]
-            ang_vel_yaw = [-3, 3]  # min max [rad/s]
+            lin_vel_x = [0, 3.0]  # min max [m/s]
+            lin_vel_y = [-0.5, 0.5]  # min max [m/s]
+            ang_vel_yaw = [-0.5, 0.5]  # min max [rad/s]
 
     class init_state(LeggedRobotCfg.init_state):
         pos = [0.0, 0.0, 0.43]  # x,y,z [m]
@@ -87,10 +87,10 @@ class AlienGoCfg(LeggedRobotCfg):
         # decimation: Number of control action updates @ sim DT per policy DT
         decimation = 5
         use_actuator_network = False
-        # actuator_net_file = "{LEGGED_GYM_ROOT_DIR}/resources/ETG/ac2f10ms.onnx"
         actuator_net_file = "{LEGGED_GYM_ROOT_DIR}/resources/ETG/actuator_net.pt"
         use_plotjuggler = False
         wandb_log = True
+        get_depth_img = False
 
     class asset(LeggedRobotCfg.asset):
         file = "{LEGGED_GYM_ROOT_DIR}/resources/robots/aliengo/urdf/aliengo.urdf"
@@ -105,6 +105,10 @@ class AlienGoCfg(LeggedRobotCfg):
         default_dof_drive_mode = 3  # see GymDofDriveModeFlags (0 is none, 1 is pos tgt, 2 is vel tgt, 3 effort)
         replace_cylinder_with_capsule = True  # replace collision cylinders with capsules, leads to faster/more stable simulation
         flip_visual_attachments = True  # Some .obj meshes must be flipped from y-up to z-up
+
+    class camera:
+        img_width = 360
+        img_length = 240
 
     class domain_rand(LeggedRobotCfg.domain_rand):
         randomize_base_mass = True

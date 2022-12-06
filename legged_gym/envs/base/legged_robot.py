@@ -423,7 +423,12 @@ class LeggedRobot(BaseTask):
         if self.custom_origins:
             self.root_states[env_ids] = self.base_init_state
             self.root_states[env_ids, :3] += self.env_origins[env_ids]
-            self.root_states[env_ids, :2] += torch_rand_float(-1., 1., (len(env_ids), 2), device=self.device)  # xy position within 1m of the center
+            # self.root_states[env_ids, :2] += torch_rand_float(-1., 1., (len(env_ids), 2), device=self.device)  # xy position within 1m of the center
+            bias_x = (-torch.ones(len(env_ids), device=self.device) * 3 / 8 * self.terrain.env_width).unsqueeze(1)
+            bias_y = torch_rand_float(-1 / 4 * self.terrain.env_length, 1 / 4 * self.terrain.env_length, (len(env_ids), 1), device=self.device)
+            v = torch.hstack([bias_x, bias_y])
+            self.root_states[env_ids, :2] += v
+            self.root_states[env_ids, 2] = self.cfg.init_state.pos[2]
         else:
             self.root_states[env_ids] = self.base_init_state
             self.root_states[env_ids, :3] += self.env_origins[env_ids]
@@ -694,9 +699,12 @@ class LeggedRobot(BaseTask):
             # create env instance
             env_handle = self.gym.create_env(self.sim, env_lower, env_upper, int(np.sqrt(self.num_envs)))
             pos = self.env_origins[i].clone()
-            pos[:2] += torch_rand_float(-1., 1., (2, 1), device=self.device).squeeze(1)
+            # pos[:2] += torch_rand_float(-1., 1., (2, 1), device=self.device).squeeze(1)
+            bias_x = -3 / 8 * self.terrain.env_width
+            bias_y = (torch.rand(1) * 1 / 2 - 1 / 4) * self.terrain.env_length
+            pos[:2] += torch.tensor([bias_x, bias_y], device=self.device)
+            pos[2] = self.cfg.init_state.pos[2]
             start_pose.p = gymapi.Vec3(*pos)
-
             rigid_shape_props = self._process_rigid_shape_props(rigid_shape_props_asset, i)
             self.gym.set_asset_rigid_shape_properties(robot_asset, rigid_shape_props)
             actor_handle = self.gym.create_actor(env_handle, robot_asset, start_pose, self.cfg.asset.name, i, self.cfg.asset.self_collisions, 0)

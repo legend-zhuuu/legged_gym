@@ -61,8 +61,10 @@ class Terrain:
         self.tot_rows = int(cfg.num_rows * self.length_per_env_pixels) + 2 * self.border
 
         self.height_field_raw = np.zeros((self.tot_rows, self.tot_cols), dtype=np.int16)
+        time1 = time()
         if cfg.curriculum:
-            self.curiculum()
+            # self.curiculum()
+            self.make_stairs_terrain_curriculum()
         elif cfg.selected:
             self.selected_terrain()
         else:
@@ -74,6 +76,8 @@ class Terrain:
                                                                                          self.cfg.horizontal_scale,
                                                                                          self.cfg.vertical_scale,
                                                                                          self.cfg.slope_treshold)
+
+        print(f"generate time:{time() - time1} s")
 
     def randomized_terrain(self):
         for k in range(self.cfg.num_sub_terrains):
@@ -94,9 +98,26 @@ class Terrain:
                 terrain = self.make_terrain(choice, difficulty)
                 self.add_terrain_to_map(terrain, i, j)
 
+    def make_stairs_terrain_curriculum(self):
+        stair_width_range = [0.2, 0.4]
+        stair_height_range = [0.05, 0.3]
+        for j in range(self.cfg.num_cols):
+            for i in range(self.cfg.num_rows):
+                difficulty = i / self.cfg.num_rows
+                terrain = terrain_utils.SubTerrain("terrain",
+                                                   width=self.width_per_env_pixels,
+                                                   length=self.width_per_env_pixels,
+                                                   vertical_scale=self.cfg.vertical_scale,
+                                                   horizontal_scale=self.cfg.horizontal_scale)
+                stair_width = np.random.uniform(stair_width_range[0], stair_width_range[1])
+                # stair_width = 0.4
+                stair_height = stair_height_range[0] + (stair_height_range[1] - stair_height_range[0]) * difficulty
+                terrain = stairs_terrain(terrain, stair_width, stair_height)
+                # print(f"width:{stair_width}, height:{stair_height}")
+                self.add_terrain_to_map(terrain, i, j)
+
     def selected_terrain(self):
         terrain_type = self.cfg.terrain_kwargs['type']
-        time1 = time()
         for k in range(self.cfg.num_sub_terrains):
             # Env coordinates in the world
             (i, j) = np.unravel_index(k, (self.cfg.num_rows, self.cfg.num_cols))
@@ -109,7 +130,6 @@ class Terrain:
 
             eval(terrain_type)(terrain, **self.cfg.terrain_kwargs["terrain_kwargs"])
             self.add_terrain_to_map(terrain, i, j)
-        print(f"terrain generate time:{time() - time1} s")
 
     def make_terrain(self, choice, difficulty):
         terrain = terrain_utils.SubTerrain("terrain",
@@ -202,10 +222,6 @@ def pyramid_sloped_terrain(terrain, slope, platform_size):
     terrain_utils.pyramid_sloped_terrain(terrain, slope=slope, platform_size=platform_size)
 
 
-def stairs_terrain(terrain, step_width, step_height):
-    terrain_utils.stairs_terrain(terrain, step_width=step_width, step_height=step_height)
-
-
 def discrete_obstacles_terrain(terrain, discrete_obstacles_height, rectangle_min_size, rectangle_max_size, num_rectangles, platform_size=3.):
     terrain_utils.discrete_obstacles_terrain(terrain, discrete_obstacles_height, rectangle_min_size, rectangle_max_size, num_rectangles, platform_size=platform_size)
 
@@ -216,7 +232,7 @@ def stepping_stones_terrain(terrain, stepping_stones_size, stone_distance):
 
 def perlin_terrain(terrain, octaves=1, tile=(0, 3), step=1):
     frame_size = (int(terrain.width * 1), int(terrain.length * 1))
-    height = make_perlin_terrain(octaves, tile, frameSize=frame_size) / terrain.vertical_scale
+    height = make_perlin_terrain(octaves, tile, frameSize=frame_size) / terrain.vertical_scale / 10
     min_height = np.min(height)
     max_height = np.max(height)
     # switch parameters to discrete units
@@ -238,3 +254,20 @@ def perlin_terrain(terrain, octaves=1, tile=(0, 3), step=1):
     terrain.height_field_raw += z_upsampled.astype(np.int16)
     return terrain
 
+
+def stairs_terrain(terrain, step_width, step_height):
+    step_width = int(step_width / terrain.horizontal_scale)
+    step_height = int(step_height / terrain.vertical_scale)
+    platform_size = int(terrain.width / 4)
+
+    height = 0 / terrain.vertical_scale
+    start_x = int(terrain.width / 4)
+    stop_x = terrain.width
+    terrain.height_field_raw[0: start_x] = height
+    while (stop_x - start_x) > platform_size:
+        terrain.height_field_raw[start_x: stop_x] = height
+        start_x += step_width
+        height += step_height
+
+    return terrain
+    # terrain_utils.stairs_terrain(terrain, step_width=step_width, step_height=step_height)

@@ -47,8 +47,8 @@ def play(args):
     env_cfg.env.num_envs = min(env_cfg.env.num_envs, 4)
     env_cfg.terrain.num_rows = 1
     env_cfg.terrain.num_cols = 1
-    env_cfg.terrain.terrain_length = 50
-    env_cfg.terrain.terrain_width = 50
+    env_cfg.terrain.terrain_length = 10
+    env_cfg.terrain.terrain_width = 10
     env_cfg.terrain.curriculum = False
     env_cfg.commands.step_cmd = True
     env_cfg.noise.add_noise = False
@@ -116,7 +116,8 @@ def play(args):
                 }
             )
         elif i == stop_state_log:
-            logger.plot_states()
+            # logger.plot_states()
+            continue
         if "episode" in infos.keys():
             num_episodes = torch.sum(env.reset_buf).item()
             if num_episodes > 0:
@@ -132,6 +133,6 @@ if __name__ == '__main__':
     RECORD_FRAMES = False
     MOVE_CAMERA = False
     args = get_args([
-        {"name": "--debug", "type": str, "default": True, "help": "wandb project name."},
+        {"name": "--debug", "type": str, "default": True, "help": "true for play."},
     ])
     play(args)
