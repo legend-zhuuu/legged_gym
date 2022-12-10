@@ -15,7 +15,6 @@ import collections
 from collections.abc import Sequence
 import numpy as np
 import torch
-import onnxruntime as ort
 
 NUM_MOTORS = 12
 

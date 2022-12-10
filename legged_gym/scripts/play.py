@@ -39,6 +39,25 @@ from legged_gym.utils import get_args, export_policy_as_jit, task_registry, Logg
 
 import numpy as np
 import torch
+from Commander import GamepadCommander
+
+# init GamepadCommander--xbox
+GpC = GamepadCommander()
+
+
+def get_command_from_gamepad(obs, cmd_range):
+    cmd = np.array(GpC.read_command())
+    vel_x = cmd_range["vel_x"]
+    vel_y = cmd_range["vel_y"]
+    w = cmd_range["w"]
+    cmd[0] = vel_x[1] * cmd[0] if cmd[0] > 0 else vel_x[0] * abs(cmd[0])
+    cmd[1] = vel_y[1] * cmd[1] if cmd[1] > 0 else vel_y[0] * abs(cmd[1])
+    cmd[2] = w[1] * cmd[2] if cmd[0] > 0 else w[0] * abs(cmd[2])
+    cmd_norm = np.linalg.norm(cmd) < 0.01
+    # print("cmd:", cmd)
+    obs[:, 0:3] = torch.tensor(cmd)
+    obs[:, -1] = torch.tensor(cmd_norm)
+    return obs
 
 
 def play(args):
@@ -57,8 +76,15 @@ def play(args):
     env_cfg.control.wandb_log = False
 
     # prepare environment
+    cmd_range = {
+        "vel_x": [-1, 3],
+        "vel_y": [-1, 1],
+        "w": [-0.5, 0.5],
+    }
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
     obs = env.get_observations()
+    obs = get_command_from_gamepad(obs, cmd_range)
+
     # load policy
     train_cfg.runner.resume = True
     ppo_runner, train_cfg = task_registry.make_alg_runner(env=env, name=args.task, args=args, train_cfg=train_cfg)
@@ -86,6 +112,7 @@ def play(args):
         actions = policy(obs.contiguous())
         time0 = time.time()
         obs, _, rews, dones, infos = env.step(actions)
+        obs = get_command_from_gamepad(obs, cmd_range)
         # print(f'step time: {(time.time() - time0) * 1000} ms')
         re += rews
         # print("play:", env.commands)

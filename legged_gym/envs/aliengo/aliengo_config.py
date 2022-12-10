@@ -30,14 +30,14 @@ class AlienGoCfg(LeggedRobotCfg):
                               # "octaves": 1,
                               # "tile": (0, 3),
                               "step_width": 0.4,
-                              "step_height": 0.04,
+                              "step_height": 0.2,
                           }
                           }  # Dict of arguments for selected terrain
         max_init_terrain_level = 3  # starting curriculum state
         terrain_length = 10.
         terrain_width = 10.
-        num_rows = 5  # number of terrain rows (levels)
-        num_cols = 5  # number of terrain cols (types)
+        num_rows = 2  # number of terrain rows (levels)
+        num_cols = 2  # number of terrain cols (types)
         # terrain types: [smooth slope, rough slope, stairs up, stairs down, discrete]
         terrain_proportions = [0.1, 0.1, 0.35, 0.25, 0.2]
         # trimesh only:
@@ -154,7 +154,7 @@ class AlienGoCfg(LeggedRobotCfg):
             joint_vel = -1.0e-4
             joint_acc = -1.5e-8
             collision = -0.2
-            # air_time = 0.4
+            feet_air_time = 0.4
             # air_time_consistency= -0.05
             # rhythm = -0.2
             angular_motion = -0.02
