@@ -66,8 +66,8 @@ def play(args):
     env_cfg.env.num_envs = min(env_cfg.env.num_envs, 4)
     env_cfg.terrain.num_rows = 1
     env_cfg.terrain.num_cols = 1
-    env_cfg.terrain.terrain_length = 10
-    env_cfg.terrain.terrain_width = 10
+    env_cfg.terrain.terrain_length = 30
+    env_cfg.terrain.terrain_width = 30
     env_cfg.terrain.curriculum = False
     env_cfg.commands.step_cmd = True
     env_cfg.noise.add_noise = False
@@ -83,7 +83,8 @@ def play(args):
     }
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
     obs = env.get_observations()
-    obs = get_command_from_gamepad(obs, cmd_range)
+    if args.gamepad:
+        obs = get_command_from_gamepad(obs, cmd_range)
 
     # load policy
     train_cfg.runner.resume = True
@@ -112,7 +113,8 @@ def play(args):
         actions = policy(obs.contiguous())
         time0 = time.time()
         obs, _, rews, dones, infos = env.step(actions)
-        obs = get_command_from_gamepad(obs, cmd_range)
+        if args.gamepad:
+            obs = get_command_from_gamepad(obs, cmd_range)
         # print(f'step time: {(time.time() - time0) * 1000} ms')
         re += rews
         # print("play:", env.commands)
@@ -161,5 +163,6 @@ if __name__ == '__main__':
     MOVE_CAMERA = False
     args = get_args([
         {"name": "--debug", "type": str, "default": True, "help": "true for play."},
+        {"name": "--gamepad", "action": "store_true", "default": False, "help": "use gamepad."},
     ])
     play(args)
