@@ -41,11 +41,9 @@ import numpy as np
 import torch
 from Commander import GamepadCommander
 
-# init GamepadCommander--xbox
-GpC = GamepadCommander()
-
 
 def get_command_from_gamepad(obs, cmd_range):
+    global GpC
     cmd = np.array(GpC.read_command())
     vel_x = cmd_range["vel_x"]
     vel_y = cmd_range["vel_y"]
@@ -75,11 +73,16 @@ def play(args):
     env_cfg.domain_rand.push_robots = False
     env_cfg.control.wandb_log = False
 
+    # init GamepadCommander--xbox
+    global GpC
+    if args.gamepad:
+        GpC = GamepadCommander()
+
     # prepare environment
     cmd_range = {
-        "vel_x": [-1, 3],
-        "vel_y": [-1, 1],
-        "w": [-0.5, 0.5],
+        "vel_x": [-3, 3],
+        "vel_y": [-2, 2],
+        "w": [-3., 3.],
     }
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
     obs = env.get_observations()

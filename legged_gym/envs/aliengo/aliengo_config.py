@@ -5,23 +5,23 @@ class AlienGoCfg(LeggedRobotCfg):
     class env(LeggedRobotCfg.env):
         num_envs = 4096
         num_actions = 12
-        # num_observations = 36
-        num_observations = 223  # for measure heights
+        num_observations = 36
+        # num_observations = 223  # for measure heights
         episode_length_s = 10  # episode length in seconds
         use_rms = True
         debug = False
 
     class terrain(LeggedRobotCfg.terrain):
-        mesh_type = 'trimesh'  # "heightfield" # none, plane, heightfield or trimesh
+        mesh_type = 'plane'  # "heightfield" # none, plane, heightfield or trimesh
         horizontal_scale = 0.05 # [m]
         vertical_scale = 0.005  # [m]
         border_size = 25  # [m]
-        curriculum = True
+        curriculum = False
         static_friction = 1.0
         dynamic_friction = 1.0
         restitution = 0.
         # rough terrain only:
-        measure_heights = True
+        measure_heights = False
         measured_points_x = [-0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]  # 1mx1.6m rectangle (without center line)
         measured_points_y = [-0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5]
         selected = True  # select a unique terrain type and pass all arguments
@@ -49,9 +49,9 @@ class AlienGoCfg(LeggedRobotCfg):
         step_cmd = False
 
         class ranges(LeggedRobotCfg.commands.ranges):
-            lin_vel_x = [0, 3.0]  # min max [m/s]
-            lin_vel_y = [-0.5, 0.5]  # min max [m/s]
-            ang_vel_yaw = [-0.5, 0.5]  # min max [rad/s]
+            lin_vel_x = [-3.0, 3.0]  # min max [m/s]
+            lin_vel_y = [-2., 2.]  # min max [m/s]
+            ang_vel_yaw = [-3., 3.]  # min max [rad/s]
 
     class init_state(LeggedRobotCfg.init_state):
         pos = [0.0, 0.0, 0.43]  # x,y,z [m]
@@ -154,7 +154,7 @@ class AlienGoCfg(LeggedRobotCfg):
             joint_vel = -1.0e-4
             joint_acc = -1.5e-8
             collision = -0.2
-            feet_air_time = 0.4
+            # feet_air_time = 0.4
             # air_time_consistency= -0.05
             # rhythm = -0.2
             angular_motion = -0.02
@@ -211,6 +211,8 @@ class AlienGoCfgPPO(LeggedRobotCfgPPO):
         gamma = 0.992
 
     class runner(LeggedRobotCfgPPO.runner):
+        policy_class_name = 'ActorCriticRecurrent'
+        algorithm_class_name = 'PPO'
         num_steps_per_env = 24
         max_iterations = 2000
 
