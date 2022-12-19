@@ -58,3 +58,5 @@ wandb/*
 # other
 *.egg-info
 __pycache__
+result.json
+

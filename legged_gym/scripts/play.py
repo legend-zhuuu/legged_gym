@@ -51,6 +51,7 @@ def get_command_from_gamepad(obs, cmd_range):
     cmd[0] = vel_x[1] * cmd[0] if cmd[0] > 0 else vel_x[0] * abs(cmd[0])
     cmd[1] = vel_y[1] * cmd[1] if cmd[1] > 0 else vel_y[0] * abs(cmd[1])
     cmd[2] = w[1] * cmd[2] if cmd[0] > 0 else w[0] * abs(cmd[2])
+    print("velx, vely, w:", cmd)
     cmd_norm = np.linalg.norm(cmd) < 0.01
     # print("cmd:", cmd)
     obs[:, 0:3] = torch.tensor(cmd)
