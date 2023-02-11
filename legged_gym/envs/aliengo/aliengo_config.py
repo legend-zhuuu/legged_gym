@@ -34,8 +34,8 @@ class AlienGoCfg(LeggedRobotCfg):
                           }
                           }  # Dict of arguments for selected terrain
         max_init_terrain_level = 3  # starting curriculum state
-        terrain_length = 10.
-        terrain_width = 10.
+        terrain_length = 4.
+        terrain_width = 4.
         num_rows = 10  # number of terrain rows (levels)
         num_cols = 10  # number of terrain cols (types)
         # terrain types: [smooth slope, rough slope, stairs up, stairs down, discrete]
@@ -90,7 +90,7 @@ class AlienGoCfg(LeggedRobotCfg):
         actuator_net_file = "{LEGGED_GYM_ROOT_DIR}/resources/ETG/actuator_net.pt"
         use_plotjuggler = False
         wandb_log = True
-        get_depth_img = False
+        get_depth_img = True
 
     class asset(LeggedRobotCfg.asset):
         file = "{LEGGED_GYM_ROOT_DIR}/resources/robots/aliengo/urdf/aliengo.urdf"

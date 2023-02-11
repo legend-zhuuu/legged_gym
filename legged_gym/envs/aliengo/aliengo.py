@@ -22,7 +22,7 @@ from .aliengo_config import AlienGoCfg
 from .laikago_motor import ActuatorNetMotorModel
 from .actuator import Actuator
 from .simple_openloop import ETGOffsetGenerator
-
+from .camera import Camera
 
 class RunningMeanStd:
     """Tracks the mean, variance and count of values."""
@@ -123,6 +123,7 @@ class AlienGo(LeggedRobot):
         self.prepare_TG_table()
         self._data_publisher = UdpPublisher(9870)
         self.obs_rms = None
+        self.camera = Camera(self.sim, self.envs)
 
         if self.cfg.env.use_rms:
             self.obs_rms = RunningMeanStd(shape=(self.cfg.env.num_observations,)).to(self.device)
@@ -165,32 +166,8 @@ class AlienGo(LeggedRobot):
                 'reward_dict': reward_dict,
             })
         if self.cfg.control.get_depth_img and np.mod(self.common_step_counter, 10) == 0:
-            if not os.path.exists("graphics_images"):
-                os.mkdir("graphics_images")
-            frame_count = self.common_step_counter
-            self.gym.render_all_camera_sensors(self.sim)
-            for i in range(16, 17):
-                    # The gym utility to write images to disk is recommended only for RGB images.
-                    rgb_filename = "graphics_images/rgb_env%d_frame%d.png" % (i, frame_count)
-                    # self.gym.write_camera_image_to_file(self.sim, self.envs[i], self.camera_handles[i], gymapi.IMAGE_COLOR, rgb_filename)
-
-                    # Retrieve image data directly. Use this for Depth, Segmentation, and Optical Flow images
-                    # Here we retrieve a depth image, normalize it to be visible in an
-                    # output image and then write it to disk using Pillow
-                    depth_image = self.gym.get_camera_image(self.sim, self.envs[i], self.camera_handles[i], gymapi.IMAGE_DEPTH)
-
-                    # -inf implies no depth value, set it to zero. output will be black.
-                    depth_image[depth_image == -np.inf] = 0
-
-                    # clamp depth image to 10 meters to make output image human friendly
-                    depth_image[depth_image < -10] = -10
-
-                    # flip the direction so near-objects are light and far objects are dark
-                    normalized_depth = -255.0 * (depth_image / np.min(depth_image + 1e-4))
-
-                    # Convert to a pillow image and write it to disk
-                    normalized_depth_image = im.fromarray(normalized_depth.astype(np.uint8), mode="L")
-                    # normalized_depth_image.save("graphics_images/depth_env%d_frame%d.jpg" % (i, frame_count))
+            self.camera.save_img()
+            # print(self.gym.get_camera_transform(self.sim, self.envs[0], 0).p)
         return self.obs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
 
     def post_physics_step(self):
@@ -442,19 +419,6 @@ class AlienGo(LeggedRobot):
 
     def _create_envs(self):
         super()._create_envs()
-        if self.cfg.control.get_depth_img:
-            self.camera_handles = []
-            for i in range(self.num_envs):
-                camera_properties = gymapi.CameraProperties()
-                camera_properties.width = self.cfg.camera.img_width
-                camera_properties.height = self.cfg.camera.img_length
-                h = self.gym.create_camera_sensor(self.envs[i], camera_properties)
-                camera_offset = gymapi.Vec3(1, 0, -0)
-                camera_rotation = gymapi.Quat.from_axis_angle(gymapi.Vec3(0, 1, 0), np.deg2rad(0))
-                actor_handle = self.gym.get_actor_handle(self.envs[i], 0)
-                body_handle = self.gym.get_actor_rigid_body_handle(self.envs[i], actor_handle, 0)
-                self.gym.attach_camera_to_body(h, self.envs[i], body_handle, gymapi.Transform(camera_offset, camera_rotation), gymapi.FOLLOW_TRANSFORM)
-                self.camera_handles.append(h)
 
     def _foot_command_rand(self, env_ids):
         # foot_dx = torch.rand(len(env_ids), 4, device=self.device, requires_grad=False) * 0.1

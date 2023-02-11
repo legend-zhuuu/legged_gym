@@ -54,6 +54,7 @@ Thumbs.db
 logs
 runs
 wandb/*
+graphics_images/*
 
 # other
 *.egg-info
