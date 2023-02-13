@@ -55,6 +55,7 @@ logs
 runs
 wandb/*
 graphics_images/*
+legged_gym/scripts/*
 
 # other
 *.egg-info
