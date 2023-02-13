@@ -166,7 +166,7 @@ if __name__ == '__main__':
     RECORD_FRAMES = False
     MOVE_CAMERA = False
     args = get_args([
-        {"name": "--debug", "type": str, "default": True, "help": "true for play."},
+        {"name": "--debug", "action": "store_true", "default": False, "help": "true for play."},
         {"name": "--gamepad", "action": "store_true", "default": False, "help": "use gamepad."},
     ])
     play(args)

@@ -3,6 +3,8 @@ import numpy as np
 from isaacgym import gymapi
 from isaacgym import gymutil
 from PIL import Image as im
+import torch
+from isaacgym import gymtorch
 
 
 class Camera:
@@ -19,6 +21,7 @@ class Camera:
         camera_properties = gymapi.CameraProperties()
         camera_properties.width = 360
         camera_properties.height = 240
+        camera_properties.enable_tensors = True
 
         for i in range(len(self.envs)):
             self.camera_handles.append([])
@@ -52,20 +55,19 @@ class Camera:
                 # Retrieve image data directly. Use this for Depth, Segmentation, and Optical Flow images
                 # Here we retrieve a depth image, normalize it to be visible in an
                 # output image and then write it to disk using Pillow
-                depth_image = self.gym.get_camera_image(self.sim, self.envs[i], self.camera_handles[i][j], gymapi.IMAGE_DEPTH)
-
+                # depth_image = self.gym.get_camera_image(self.sim, self.envs[i], self.camera_handles[i][j], gymapi.IMAGE_DEPTH)
+                depth_image = self.gym.get_camera_image_gpu_tensor(self.sim, self.envs[i], self.camera_handles[i][j], gymapi.IMAGE_DEPTH)
+                depth_image = gymtorch.wrap_tensor(depth_image)
                 # -inf implies no depth value, set it to zero. output will be black.
-                depth_image[depth_image == -np.inf] = 0
-
+                # depth_image[depth_image == -np.inf] = 0
+                depth_image = torch.where(depth_image == -torch.inf, 0, depth_image)
                 # clamp depth image to 10 meters to make output image human friendly
-                depth_image[depth_image < -10] = -10
+                depth_image = torch.where(depth_image < -10, -10, depth_image)
 
                 # flip the direction so near-objects are light and far objects are dark
-                normalized_depth = -255.0 * (depth_image / np.min(depth_image + 1e-4))
+                normalized_depth = -255.0 * (depth_image / torch.min(depth_image + 1e-4))
 
-                # Convert to a pillow image and write it to disk
-                normalized_depth_image = im.fromarray(normalized_depth.astype(np.uint8), mode="L")
-                camera_buffer[i].append(normalized_depth_image)
+                camera_buffer[i].append(normalized_depth)
         self.frame_count += 1
         return camera_buffer
 

@@ -166,8 +166,10 @@ class AlienGo(LeggedRobot):
                 'reward_dict': reward_dict,
             })
         if self.cfg.control.get_depth_img and np.mod(self.common_step_counter, 10) == 0:
-            self.camera.save_img()
-            # print(self.gym.get_camera_transform(self.sim, self.envs[0], 0).p)
+            # self.camera.save_img()
+            depth_img = self.camera.get_picture()
+            # print(depth_img)
+            # pass
         return self.obs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
 
     def post_physics_step(self):
