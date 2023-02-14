@@ -25,19 +25,19 @@ class AlienGoCfg(LeggedRobotCfg):
         measured_points_x = [-0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]  # 1mx1.6m rectangle (without center line)
         measured_points_y = [-0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5]
         selected = True  # select a unique terrain type and pass all arguments
-        terrain_kwargs = {'type': 'stairs_terrain',  # "gap_terrain", "perlin_terrain", "stairs_terrain"
+        terrain_kwargs = {'type': 'perlin_terrain',  # "gap_terrain", "perlin_terrain", "stairs_terrain"
                           'terrain_kwargs': {
                               # "octaves": 1,
                               # "tile": (0, 3),
-                              "step_width": 0.4,
-                              "step_height": 0.1,
+                              # "step_width": 0.4,
+                              # "step_height": 0.1,
                           }
                           }  # Dict of arguments for selected terrain
         max_init_terrain_level = 3  # starting curriculum state
-        terrain_length = 4.
-        terrain_width = 4.
-        num_rows = 10  # number of terrain rows (levels)
-        num_cols = 10  # number of terrain cols (types)
+        terrain_length = 8.
+        terrain_width = 8.
+        num_rows = 5  # number of terrain rows (levels)
+        num_cols = 5  # number of terrain cols (types)
         # terrain types: [smooth slope, rough slope, stairs up, stairs down, discrete]
         terrain_proportions = [0.1, 0.1, 0.35, 0.25, 0.2]
         # trimesh only:

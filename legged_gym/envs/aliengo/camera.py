@@ -77,7 +77,7 @@ class Camera:
 
         # render the camera sensors
         self.gym.render_all_camera_sensors(self.sim)
-        for i in range(min(4, len(self.envs))):
+        for i in range(min(8, len(self.envs))):
             for j in range(self.camera_num):
                 # # The gym utility to write images to disk is recommended only for RGB images.
                 # rgb_filename = "graphics_images/rgb_env%d_cam%d_frame%d.png" % (i, j, self.frame_count)
