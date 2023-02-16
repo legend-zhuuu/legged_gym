@@ -147,4 +147,4 @@ class BaseTask():
             self.gym.fetch_results(self.sim, True)
             self.gym.step_graphics(self.sim)
             self.gym.sync_frame_time(self.sim)
-
+            # pass
