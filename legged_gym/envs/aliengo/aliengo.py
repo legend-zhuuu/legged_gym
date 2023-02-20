@@ -123,7 +123,8 @@ class AlienGo(LeggedRobot):
         self.prepare_TG_table()
         self._data_publisher = UdpPublisher(9870)
         self.obs_rms = None
-        self.camera = Camera(self.sim, self.envs)
+        if self.cfg.control.get_depth_img:
+            self.camera = Camera(self.gym, self.sim, self.envs)
 
         if self.cfg.env.use_rms:
             self.obs_rms = RunningMeanStd(shape=(self.cfg.env.num_observations,)).to(self.device)
@@ -166,8 +167,8 @@ class AlienGo(LeggedRobot):
                 'reward_dict': reward_dict,
             })
         if self.cfg.control.get_depth_img and np.mod(self.common_step_counter, 10) == 0:
-            # self.camera.save_img()
-            depth_img = self.camera.get_picture()
+            self.camera.save_img()
+            # depth_img = self.camera.get_picture()
             # print(depth_img[0])
             # pass
         return self.obs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras

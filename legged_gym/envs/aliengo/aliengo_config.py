@@ -13,7 +13,7 @@ class AlienGoCfg(LeggedRobotCfg):
 
     class terrain(LeggedRobotCfg.terrain):
         mesh_type = 'trimesh'  # "heightfield" # none, plane, heightfield or trimesh
-        horizontal_scale = 0.05 # [m]
+        horizontal_scale = 0.05  # [m]
         vertical_scale = 0.005  # [m]
         border_size = 25  # [m]
         curriculum = False

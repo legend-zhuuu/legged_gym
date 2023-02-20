@@ -214,6 +214,10 @@ class OnPolicyRunner:
                        f"""{'ETA:':>{pad}} {self.tot_time / (locs['it'] + 1) * (
                                locs['num_learning_iterations'] - locs['it']):.1f}s\n""")
         print(log_string)
+        if locs['it'] == locs['tot_iter'] - 1:
+            csv_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+            with open(os.path.join(csv_dir, 'result.csv'), 'a+') as f:
+                f.write(log_string)
 
     def save(self, path, infos=None):
         state = {

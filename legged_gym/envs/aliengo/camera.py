@@ -8,10 +8,10 @@ from isaacgym import gymtorch
 
 
 class Camera:
-    def __init__(self, sim, envs):
+    def __init__(self, gym, sim, envs):
         self.sim = sim
         self.envs = envs
-        self.gym = gymapi.acquire_gym()
+        self.gym = gym
         self.camera_handles = [[]]
         self.camera_num = 1  # if robot use more camera, pls add camera handle
         self.init_camera_state()
@@ -41,6 +41,7 @@ class Camera:
             # camera_target = gymapi.Vec3(10, 10, 1.)
             # self.gym.set_camera_location(h1, self.envs[i], camera_position, camera_target)
             # self.camera_handles[i].append(h1)
+        print(self.camera_handles)
 
     def get_picture(self):
         # render the camera sensors

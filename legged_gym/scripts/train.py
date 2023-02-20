@@ -48,6 +48,14 @@ def train(args):
         "max_iterations": train_cfg.runner.max_iterations,
         "num_envs": env_cfg.env.num_envs,
     }
+    csv_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+    with open(os.path.join(csv_dir, 'result.csv'), 'a+') as f:
+        f.write("################################################################################\n"
+                "run time: \n"
+                f"{datetime.now().strftime('%b%d_%H-%M-%S')}\n"
+                "configs: \n"
+                f"max_iterations={args.max_iterations}, run_name={args.run_name}, num_envs={args.num_envs}, "
+                f"terrain={env_cfg.terrain.terrain_kwargs['type']}, measure_heights={env_cfg.terrain.measure_heights}, use_depth_images={env_cfg.control.get_depth_img}\n")
 
     ppo_runner.learn(num_learning_iterations=train_cfg.runner.max_iterations, init_at_random_ep_len=True)
 
