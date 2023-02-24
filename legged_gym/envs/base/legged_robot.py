@@ -48,6 +48,7 @@ from legged_gym.utils.terrain import Terrain
 from legged_gym.utils.math import quat_apply_yaw, wrap_to_pi, torch_rand_sqrt_float
 from legged_gym.utils.helpers import class_to_dict
 from .legged_robot_config import LeggedRobotCfg
+from scipy.spatial.transform import Rotation as scipyRotation
 
 
 class LeggedRobot(BaseTask):
@@ -426,11 +427,24 @@ class LeggedRobot(BaseTask):
             if self.cfg.terrain.mesh_type == "plane":
                 self.root_states[env_ids, :2] += torch_rand_float(-1., 1., (len(env_ids), 2), device=self.device)  # xy position within 1m of the center
             else:
-                bias_x = (-torch.ones(len(env_ids), device=self.device) * 3 / 8 * self.terrain.env_width).unsqueeze(1)
-                bias_y = torch_rand_float(-1 / 4 * self.terrain.env_length, 1 / 4 * self.terrain.env_length, (len(env_ids), 1), device=self.device)
-                v = torch.hstack([bias_x, bias_y])
-                self.root_states[env_ids, :2] += v
-                self.root_states[env_ids, 2] = self.cfg.init_state.pos[2]
+                if self.cfg.terrain.terrain_kwargs["type"] == "perlin_terrain":
+                    init_foot_pos = self.foot_position_world[env_ids]
+                    terrain_samples, est_height = self.estimate_terrain(init_foot_pos[:, :, :2])
+                    orn = torch.zeros(len(env_ids), 4, device=self.device, requires_grad=False)
+                    for i in range(len(env_ids)):
+                        terrain_sample = terrain_samples[i]
+                        rot = self.get_local_terrain_rotation(terrain_sample)
+                        robot_rpy = scipyRotation.from_matrix(rot.T.numpy()).as_euler('xyz')
+                        robot_rpy[2] = 0
+                        orn[i] = torch.tensor(scipyRotation.from_euler('xyz', robot_rpy).as_quat(), device=self.device, requires_grad=False)
+                    self.root_states[env_ids, 2] = self.cfg.init_state.pos[2] + est_height.float()
+                    self.root_states[env_ids, 3:7] = orn
+                else:
+                    bias_x = (-torch.ones(len(env_ids), device=self.device) * 3 / 8 * self.terrain.env_width).unsqueeze(1)
+                    bias_y = torch_rand_float(-1 / 4 * self.terrain.env_length, 1 / 4 * self.terrain.env_length, (len(env_ids), 1), device=self.device)
+                    v = torch.hstack([bias_x, bias_y])
+                    self.root_states[env_ids, :2] += v
+                    self.root_states[env_ids, 2] = self.cfg.init_state.pos[2]
         else:
             self.root_states[env_ids] = self.base_init_state
             self.root_states[env_ids, :3] += self.env_origins[env_ids]
@@ -758,6 +772,42 @@ class LeggedRobot(BaseTask):
             self.env_origins[:, 0] = spacing * xx.flatten()[:self.num_envs]
             self.env_origins[:, 1] = spacing * yy.flatten()[:self.num_envs]
             self.env_origins[:, 2] = 0.
+
+    def estimate_terrain(self, xy_points=None):
+        terrain_samples_all = []
+        est_height = []
+        for i in range(len(xy_points)):  # [envs_ids, :, (x, y)]
+            est_h = 0
+            terrain_samples = []
+            xys = xy_points[i]
+            for (x, y) in xys:  # [4, (x, y)]
+                x, y = int(np.ceil(x.cpu())), int(np.ceil(y.cpu()))
+                z = self.terrain.height_field_raw[x, y]
+                est_h += z
+                terrain_samples.append((float(x), float(y), z))
+            terrain_samples_all.append(terrain_samples)
+            est_height.append(est_h / len(xys))
+        terrain_samples_all, est_height = \
+            torch.tensor(terrain_samples_all, device=self.device, requires_grad=False), torch.tensor(est_height, device=self.device, requires_grad=False)
+        return terrain_samples_all, est_height
+
+    def get_local_terrain_rotation(self, terrain_samples):
+        X, Y, Z = terrain_samples.T
+        A = torch.zeros((3, 3), device=self.device)
+        A[0, :] = torch.tensor([torch.sum(X ** 2), X @ Y, torch.sum(X)])
+        A[1, :] = torch.tensor([A[0, 1], torch.sum(Y ** 2), torch.sum(Y)])
+        A[2, :] = torch.tensor([A[0, 2], A[1, 2], len(X)])
+        b = torch.tensor([X @ Z, Y @ Z, torch.sum(Z)], device=self.device, requires_grad=False)
+        a, b, _ = torch.linalg.solve(A, b)
+
+        def unit(x):
+            return x / torch.linalg.norm(x)
+
+        trn_Z = unit(torch.tensor((-a, -b, 1)))
+        trn_Y = torch.cross(trn_Z, torch.tensor((1., 0., 0.)))
+        trn_X = torch.cross(trn_Y, trn_Z)
+        # (trn_X, trn_Y, trn_Z) is the transpose of rotation matrix, so there's no need to transpose again
+        return torch.vstack([trn_X, trn_Y, trn_Z])
 
     def _parse_cfg(self, cfg):
         self.dt = self.cfg.control.decimation * self.sim_params.dt

@@ -5,8 +5,8 @@ class AlienGoCfg(LeggedRobotCfg):
     class env(LeggedRobotCfg.env):
         num_envs = 4096
         num_actions = 12
-        # num_observations = 36
-        num_observations = 223  # for measure heights
+        num_observations = 36
+        # num_observations = 223  # for measure heights
         episode_length_s = 10  # episode length in seconds
         use_rms = True
         debug = False
@@ -21,7 +21,7 @@ class AlienGoCfg(LeggedRobotCfg):
         dynamic_friction = 1.0
         restitution = 0.
         # rough terrain only:
-        measure_heights = True
+        measure_heights = False
         measured_points_x = [-0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]  # 1mx1.6m rectangle (without center line)
         measured_points_y = [-0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5]
         selected = True  # select a unique terrain type and pass all arguments
@@ -54,7 +54,7 @@ class AlienGoCfg(LeggedRobotCfg):
             ang_vel_yaw = [-3., 3.]  # min max [rad/s]
 
     class init_state(LeggedRobotCfg.init_state):
-        pos = [0.0, 0.0, 0.43]  # x,y,z [m]
+        pos = [0.0, 0.0, 0.5]  # x,y,z [m]
         start_hip = 0.
         start_thigh = 0.6425
         start_calf = -1.287
@@ -124,29 +124,6 @@ class AlienGoCfg(LeggedRobotCfg):
         only_positive_rewards = True
 
         class scales:
-            # termination = -200.
-            # tracking_ang_vel = 1.0
-            # torques = -5.e-6
-            # dof_acc = -2.e-7
-            # lin_vel_z = -0.5
-            # dof_pos_limits = -1.
-            # dof_vel = -0.0
-            # ang_vel_xy = -0.0
-            # feet_contact_forces = -0.
-            # orientation = -5.0
-            # feet_air_time = 2.
-            # alive = 0.1
-            # up = 0.6
-            # height = 0.3
-            # feet_vel = 2.0
-            # feet_pos = 4.0
-            # action_rate = 0.5
-            # feet_airtime = 6.0
-            # feet_slip = 0.5
-            # tau = 0.02
-            # badfoot = 1.0
-            # footcontact = 1.0
-            # done = 1
             linear_tracking = 0.6
             angular_tracking = 0.25
             torque = -1.2e-4
@@ -154,22 +131,10 @@ class AlienGoCfg(LeggedRobotCfg):
             joint_vel = -1.0e-4
             joint_acc = -1.5e-8
             collision = -0.2
-            # feet_air_time = 0.4
-            # air_time_consistency= -0.05
-            # rhythm = -0.2
             angular_motion = -0.02
             linear_motion = -0.2
             alive = -0.
             slip = -0.02
-            # joint_motion = 0.0
-            # joint_deviation = 0.0
-            # body_motion = 0.0
-
-            # velx = 1.
-            # contact_nums = 1.
-            # contact_errs = 1.
-            # contact_rate = 1.
-            # energy_sum = 1.
 
     class noise:
         add_noise = False
